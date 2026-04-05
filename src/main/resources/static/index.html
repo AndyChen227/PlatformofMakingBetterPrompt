@@ -49,7 +49,12 @@
     <span class="crumb-arrow">›</span>
     <button class="crumb" id="crumb3" onclick="crumbClick(3)">
       <span class="crumb-num">③</span>
-      <span class="crumb-label">Final Result</span>
+      <span class="crumb-label">Token Analysis</span>
+    </button>
+    <span class="crumb-arrow">›</span>
+    <button class="crumb" id="crumb4" onclick="crumbClick(4)">
+      <span class="crumb-num">④</span>
+      <span class="crumb-label">Quality Check</span>
     </button>
   </div>
 
@@ -357,7 +362,7 @@
 
     <div class="page-head-row">
       <div>
-        <h1 class="page-title">Final Result</h1>
+        <h1 class="page-title">Token Analysis</h1>
         <p class="page-subtitle">Compare original and optimized prompts</p>
       </div>
       <div class="page-head-btns">
@@ -385,6 +390,77 @@
     <div class="page-bottom-btns">
       <button class="btn btn-outline" onclick="optimizeAgain()">🔄 Optimize Again</button>
       <button class="btn btn-primary" onclick="newPrompt()">✨ New Prompt</button>
+      <button class="btn btn-primary" onclick="runQualityCheck()">Run Quality Check →</button>
+    </div>
+
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════
+     PAGE 4: QUALITY CHECK
+═══════════════════════════════════════════════════════════ -->
+<div id="page-4" class="page page-single" style="display:none;">
+  <div class="single-inner">
+
+    <div class="page-head-row">
+      <div>
+        <h1 class="page-title">Quality Check</h1>
+        <p class="page-subtitle">Compare response quality between original and optimized prompts</p>
+      </div>
+      <div class="page-head-btns">
+        <button class="btn btn-outline" onclick="goToPage(3)">← Back to Token Analysis</button>
+      </div>
+    </div>
+
+    <!-- Status / loading / error -->
+    <div id="qc-status"></div>
+
+    <!-- Prompt display: Original + Optimized side by side -->
+    <div class="qc-prompt-row" id="qc-prompt-row" style="display:none;">
+      <div class="qc-prompt-card qc-prompt-orig">
+        <span class="qc-prompt-pill qc-pill-orig">Original Prompt</span>
+        <div class="qc-prompt-text" id="qc-orig-prompt"></div>
+      </div>
+      <div class="qc-prompt-card qc-prompt-opt">
+        <span class="qc-prompt-pill qc-pill-opt">Optimized Prompt</span>
+        <div class="qc-prompt-text" id="qc-opt-prompt"></div>
+      </div>
+    </div>
+
+    <!-- Two-column answer cards -->
+    <div class="qc-compare-row" id="qc-compare-row" style="display:none;">
+      <div class="qc-answer-col">
+        <div class="qc-col-head">
+          <span class="qc-col-title">Original Prompt Answer</span>
+          <span class="score-badge" id="qc-orig-badge">—</span>
+        </div>
+        <div class="qc-answer-body" id="qc-orig-answer"></div>
+        <div class="qc-dimensions" id="qc-orig-dims"></div>
+      </div>
+      <div class="qc-answer-col">
+        <div class="qc-col-head">
+          <span class="qc-col-title">Optimized Prompt Answer</span>
+          <span class="score-badge" id="qc-opt-badge">—</span>
+        </div>
+        <div class="qc-answer-body" id="qc-opt-answer"></div>
+        <div class="qc-dimensions" id="qc-opt-dims"></div>
+      </div>
+    </div>
+
+    <!-- AI Analysis card -->
+    <div class="qc-ai-analysis" id="qc-ai-analysis" style="display:none;">
+      <div class="qc-ai-label">AI Analysis</div>
+      <div class="qc-ai-text" id="qc-natural-summary"></div>
+    </div>
+
+    <!-- Summary card -->
+    <div class="qc-summary-card" id="qc-summary-card" style="display:none;">
+      <div class="qc-summary-label">Token Efficiency Gain</div>
+      <div class="qc-summary-hint">每个 token 产出的回答质量变化幅度，正数表示优化有效</div>
+      <div class="qc-summary-score" id="qc-summary-score"></div>
+      <div class="qc-verdict" id="qc-verdict"></div>
+      <div class="qc-token-saving" id="qc-token-saving"></div>
     </div>
 
   </div>

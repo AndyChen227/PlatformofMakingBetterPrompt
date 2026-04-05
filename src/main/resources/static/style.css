@@ -954,6 +954,249 @@ a { color: inherit; text-decoration: none; }
 }
 
 /* ═══════════════════════════════════════════════════════════
+   PAGE 4 — QUALITY CHECK
+═══════════════════════════════════════════════════════════ */
+
+/* Loading / error banners */
+.qc-loading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--primary-light);
+  color: var(--primary);
+  border: 1px solid #c5d9fb;
+  border-radius: var(--radius);
+  padding: 16px 20px;
+  font-size: 14px;
+  margin-bottom: 16px;
+}
+.qc-error {
+  background: var(--danger-light);
+  color: var(--danger);
+  border: 1px solid #f5c6c6;
+  border-radius: var(--radius);
+  padding: 16px 20px;
+  font-size: 14px;
+  margin-bottom: 16px;
+}
+
+/* Dark spinner (used on light backgrounds) */
+.spinner-dark {
+  display: inline-block;
+  width: 16px; height: 16px;
+  border: 2px solid rgba(26,115,232,0.2);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+/* ── Prompt display row ──────────────────────────────────── */
+.qc-prompt-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+.qc-prompt-card {
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.qc-prompt-orig { background: #fafafa; border-left: 3px solid #dadce0; }
+.qc-prompt-opt  { background: #f8fbff; border-left: 3px solid #1a73e8; }
+.qc-prompt-pill {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 12px;
+  width: fit-content;
+}
+.qc-pill-orig { background: #e8eaed; color: #5f6368; }
+.qc-pill-opt  { background: #e8f0fe; color: #1a73e8; }
+.qc-prompt-text {
+  font-family: 'Roboto Mono', 'Courier New', monospace;
+  font-size: 13px;
+  line-height: 1.7;
+  color: #202124;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ── Two-column answer comparison ───────────────────────── */
+.qc-compare-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+.qc-answer-col {
+  background: var(--bg-white);
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.qc-col-head {
+  display: flex;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+}
+.qc-col-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+  flex: 1;
+}
+/* Score badge — circle */
+.score-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  font-size: 13px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.score-green  { background: #e6f4ea; color: #1e8e3e; }
+.score-yellow { background: #fef7e0; color: #b06000; }
+.score-red    { background: #fce8e6; color: #d93025; }
+.qc-answer-body {
+  padding: 20px;
+  font-size: 14px;
+  line-height: 1.8;
+  color: #3c4043;
+  white-space: pre-wrap;
+  word-break: break-word;
+  flex: 1;
+}
+
+/* ── Dimension score rows ───────────────────────────────── */
+.qc-dimensions {
+  padding: 12px 20px 16px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.dim-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.dim-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+  width: 72px;
+  flex-shrink: 0;
+}
+.dim-bar-wrap {
+  flex: 1;
+  height: 6px;
+  background: #e8eaed;
+  border-radius: 3px;
+  overflow: hidden;
+}
+.dim-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+.dim-fill-green  { background: #1e8e3e; }
+.dim-fill-yellow { background: #f9ab00; }
+.dim-fill-red    { background: #d93025; }
+.dim-score {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+  width: 18px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+/* ── AI Analysis card ───────────────────────────────────── */
+.qc-ai-analysis {
+  border-left: 4px solid #1a73e8;
+  background: #f8fbff;
+  border-radius: 0 8px 8px 0;
+  padding: 20px;
+  margin-bottom: 16px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+}
+.qc-ai-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1a73e8;
+  margin-bottom: 10px;
+}
+.qc-ai-text {
+  font-size: 14px;
+  color: #3c4043;
+  line-height: 1.9;
+  font-family: -apple-system, BlinkMacSystemFont, 'Google Sans', sans-serif;
+}
+
+/* ── Token Efficiency Gain card ─────────────────────────── */
+.qc-summary-card {
+  background: var(--bg-white);
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+  text-align: center;
+}
+.qc-summary-label {
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+.qc-summary-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 20px;
+  line-height: 1.5;
+}
+/* Big efficiency number — JS sets class to qc-efficiency + positive/negative/neutral */
+.qc-summary-score,
+.qc-efficiency {
+  font-size: 48px;
+  font-weight: 700;
+  line-height: 1.1;
+  margin-bottom: 16px;
+}
+.qc-efficiency.positive { color: #1e8e3e; }
+.qc-efficiency.negative { color: #d93025; }
+.qc-efficiency.neutral  { color: #5f6368; }
+/* Verdict pill */
+.qc-verdict {
+  display: inline-block;
+  font-size: 16px;
+  font-weight: 600;
+  padding: 6px 24px;
+  border-radius: 20px;
+  margin-bottom: 14px;
+}
+.verdict-great   { background: #e6f4ea; color: #1e8e3e; }
+.verdict-good    { background: #e8f0fe; color: #1a73e8; }
+.verdict-neutral { background: #f1f3f4; color: #5f6368; }
+.verdict-bad     { background: #fce8e6; color: #d93025; }
+.qc-token-saving {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-top: 8px;
+}
+
+/* ═══════════════════════════════════════════════════════════
    SCROLLBAR (Webkit)
 ═══════════════════════════════════════════════════════════ */
 ::-webkit-scrollbar { width: 6px; height: 6px; }

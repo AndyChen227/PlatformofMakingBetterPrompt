@@ -1,4 +1,4 @@
-# BetterPrompt 功能清单 v1.0
+# BetterPrompt 功能清单 v2.0
 
 > 本文档根据实际代码生成，记录项目每个功能的实现状态、细节和验证方式。
 > 更新规则：每完成或修改一个功能，同步更新对应条目。
@@ -13,9 +13,10 @@
 | Level 1 优化规则 | 4 | 2 | 2 | 0 |
 | Level 2 优化规则 | 3 | 0 | 3 | 0 |
 | Prompt Generator | 2 | 1 | 0 | 1 |
-| REST API | 3 | 3 | 0 | 0 |
-| 前端 UI | 4 | 4 | 0 | 0 |
-| **合计** | **20** | **13** | **6** | **1** |
+| REST API | 4 | 4 | 0 | 0 |
+| 前端 UI | 5 | 5 | 0 | 0 |
+| 质量对比（Quality Check） | 6 | 6 | 0 | 0 |
+| **合计** | **28** | **21** | **6** | **1** |
 
 > 注：前端 Page 1 的"AI Generate"按钮 UI 已实现但功能被禁用（`disabled` 属性），依赖 AiPromptGenerator 后端实现。
 
@@ -687,7 +688,7 @@ Content-Type: application/json
 
 ---
 
-### 6.3 第 3 页：Final Result
+### 6.3 第 3 页：Token Analysis
 ✅ 已完成并测试
 
 **Stats 统计栏**：同 Page 2
@@ -722,7 +723,7 @@ Content-Type: application/json
 - 降级方案：创建临时 textarea + `document.execCommand('copy')`
 - 复制成功后按钮文本变为 `✓ Copied!` 并添加 `.copied` CSS 类，2000ms 后恢复
 
-**底部按钮**：`🔄 Optimize Again`（返回 Page 1 保留文本）、`✨ New Prompt`（清空所有状态返回 Page 1）
+**底部按钮**：`🔄 Optimize Again`（返回 Page 1 保留文本）、`✨ New Prompt`（清空所有状态返回 Page 1）、`Run Quality Check →`（跳转 Page 4 触发质量对比）
 
 ---
 
@@ -744,8 +745,8 @@ Content-Type: application/json
 - `state.prompt`：当前 textarea 内容
 - `state.rules`：7 条规则的 enabled 和 params 配置
 - `state.result`：最近一次 optimize 的完整响应
-- `state.currentPage`：当前页码（1/2/3）
-- `state.completedPages`：已解锁的页码集合（Set）
+- `state.currentPage`：当前页码（1/2/3/4）
+- `state.completedPages`：已解锁的页码集合（Set）；Page 4 在点击 "Run Quality Check" 时写入
 
 **ℹ 弹窗系统**（`showModal` / `closeModal`）：
 - 所有 7 条规则均有 ℹ 按钮，均有对应的 `RULE_INFO` 条目
@@ -755,7 +756,124 @@ Content-Type: application/json
 
 ---
 
-## 七、待开发功能清单
+## 七、质量对比（Quality Check）
+
+### 7.1 POST /api/compare 接口
+✅ 已完成并测试
+
+**接口**：`QualityComparisonController.java`，`POST /api/compare`
+
+**请求体**：
+```json
+{
+  "originalPrompt":  "string",
+  "optimizedPrompt": "string",
+  "tokensBefore":    20,
+  "tokensAfter":     12
+}
+```
+
+**响应**：`QualityComparisonResult`（见 7.3）
+
+---
+
+### 7.2 回答生成（OpenAI gpt-4o-mini）
+✅ 已完成并测试
+
+**并行调用**：用 `CompletableFuture.supplyAsync` 同时向 OpenAI 发起两个请求，分别以 `originalPrompt` 和 `optimizedPrompt` 为用户输入，互不阻塞。
+
+**System Prompt（回答生成）**：
+> 你是一个直接回答问题的助手。用自然、流畅的语言回答，不要使用 markdown 格式，不要用代码块、标题、编号列表、加粗等格式符号。像和人对话一样，直接说清楚答案就好。
+
+**模型**：`gpt-4o-mini`，接口：`https://api.openai.com/v1/chat/completions`
+
+**API Key 注入**：通过 `@Value("${openai.api.key}")` 从 `application.properties` 读取
+
+**HTTP 实现**：Java 原生 `java.net.http.HttpClient`，不引入任何新依赖
+
+---
+
+### 7.3 三维度打分系统
+✅ 已完成并测试
+
+**打分维度**（原始和优化后各打一次，共6个分数）：
+
+| 维度 | 说明 | 字段名（before/after） |
+|------|------|-----------------------|
+| 切题性（Relevance） | 回答是否直接回应了问题核心 | `relevanceScoreBefore` / `relevanceScoreAfter` |
+| 信息密度（Density） | 有效信息量与总字数的比值，冗余多则扣分 | `densityScoreBefore` / `densityScoreAfter` |
+| 表达清晰度（Clarity） | 逻辑是否清晰，是否容易理解 | `clarityScoreBefore` / `clarityScoreAfter` |
+
+**评分标准（System Prompt 约束）**：
+- 5分 = 合格，能回答问题但有明显不足
+- 7分 = 良好，回答准确且基本完整
+- 9分以上 = 优秀，必须有充分理由才能给
+- 不因为"看起来很长很详细"给高分
+
+**综合分计算**：
+```java
+originalScore  = Math.round((relevanceBefore + densityBefore + clarityBefore) / 3.0)
+optimizedScore = Math.round((relevanceAfter  + densityAfter  + clarityAfter)  / 3.0)
+```
+
+**JSON 解析**：`extractIntField` 方法逐字符解析，无外部 JSON 库；`extractStringField` 解析 naturalSummary 字符串字段
+
+---
+
+### 7.4 Token 效率比公式
+✅ 已完成并测试
+
+**公式**：
+```
+efficiencyBefore = originalScore  / tokensBefore
+efficiencyAfter  = optimizedScore / tokensAfter
+optimizationScore = (efficiencyAfter - efficiencyBefore) / efficiencyBefore × 100
+```
+
+**含义**：每个 token 产出的质量变化幅度（百分比）。正数表示同等 token 预算下，优化后 prompt 能换来更好的回答。
+
+**精度**：`Math.round(... * 10000.0) / 100.0`，保留两位小数
+
+**防除零**：`tokensBefore`、`tokensAfter`、`efficiencyBefore` 均有零值守卫
+
+---
+
+### 7.5 Verdict 四级判定
+✅ 已完成并测试
+
+| 阈值 | Verdict |
+|------|---------|
+| `optimizationScore >= 20` | 显著提升 |
+| `optimizationScore >= 5`  | 轻微提升 |
+| `optimizationScore >= -5` | 无明显变化 |
+| `optimizationScore < -5`  | 优化后变差 |
+
+---
+
+### 7.6 AI 自然语言分析（naturalSummary）
+✅ 已完成并测试
+
+**要求**（打分 user prompt 中指定）：3-5句话，中文；具体说明三个维度的变化；举出具体例子；最后一句话总结是否值得优化；不用"总的来说"开头。
+
+**前端展示**：蓝色左边框卡片（`.qc-ai-analysis`），位于两列回答区域和综合评估卡片之间
+
+---
+
+### 7.7 前端第四页：Quality Check
+✅ 已完成并测试
+
+**页面结构**（`page-4`）：
+
+1. **两列回答对比**：左列原始 prompt 回答，右列优化后 prompt 回答；每列顶部显示 `#/10` 综合分 badge（绿/黄/红根据分数段）
+2. **维度分数进度条**（每列底部）：切题性 / 信息密度 / 表达清晰度，每行 label + 进度条（高度 6px，圆角）+ 分数；颜色规则：`>=7` 绿 / `>=5` 黄 / `<5` 红
+3. **AI 分析卡片**：蓝色左边框，浅蓝背景，展示 naturalSummary
+4. **Token Efficiency Gain 综合卡片**：大字号显示 `optimizationScore`（正数绿色 `+XX.XX%`，负数红色，零灰色）+ verdict 色块（四色对应四级）+ token 节省百分比说明
+
+**入口**：Page 3（Token Analysis）底部的 `Run Quality Check →` 按钮；点击后直接操作 DOM 跳转至 page-4，不经过 goToPage 导航守卫
+
+---
+
+## 八、待开发功能清单
 
 ### 优先级高
 
@@ -765,11 +883,6 @@ Content-Type: application/json
 - 前置条件：在 `application.properties` 中填入 `anthropic.api.key`
 - 实现计划：POST `https://api.anthropic.com/v1/messages`，model `claude-opus-4-6`，system prompt 指定任务类型和废话程度，解析 content[0].text 返回
 - 前端联动：移除 `index.html` 中 AI Generate 按钮的 `disabled` 属性，改传 `source=ai`
-
-**Claude API 接入 — 优化质量对比**
-- 📋 待开发
-- 思路：将原始 prompt 和优化后 prompt 各发一次给 Claude，对比两次回答的 token 消耗和内容质量
-- 展示位置：在 Page 3 添加对比结果区域
 
 ### 优先级中
 
@@ -803,4 +916,4 @@ Content-Type: application/json
 
 ---
 
-*最后更新：2026/04/02 · 维护人：Andy*
+*最后更新：2026/04/04 · 维护人：Andy*

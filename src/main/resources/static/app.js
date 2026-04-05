@@ -248,12 +248,11 @@ function crumbClick(n) {
 }
 
 function updateCrumbs() {
-  [1, 2, 3].forEach(n => {
+  [1, 2, 3, 4].forEach(n => {
     const el = $(`crumb${n}`);
     if (!el) return;
     el.className = 'crumb';
     const numEl = el.querySelector('.crumb-num');
-    const lblEl = el.querySelector('.crumb-label');
 
     if (n === state.currentPage) {
       el.classList.add('active');
@@ -262,7 +261,7 @@ function updateCrumbs() {
       el.classList.add('done');
       if (numEl) numEl.textContent = `✓`;
     } else {
-      if (numEl) numEl.textContent = `${['①','②','③'][n-1]}`;
+      if (numEl) numEl.textContent = `${['①','②','③','④'][n-1]}`;
     }
   });
 }
@@ -881,6 +880,155 @@ window.addEventListener('resize', () => {
     }
   }, 150);
 });
+
+// ═══════════════════════════════════════════════════════════════
+// PAGE 4: QUALITY CHECK
+// ═══════════════════════════════════════════════════════════════
+
+async function runQualityCheck() {
+  console.log('Quality Check clicked');
+
+  // Navigate to page 4 directly — bypass goToPage's sequential guard
+  // so the button always produces a visible response no matter the state.
+  document.querySelectorAll('.page').forEach(p => p.style.display = 'none');
+  const p4 = $('page-4');
+  if (p4) { p4.style.display = 'block'; window.scrollTo(0, 0); }
+  state.currentPage = 4;
+  state.completedPages.add(4);
+  updateCrumbs();
+
+  // Reset visible regions
+  $('qc-status').innerHTML = '';
+  $('qc-prompt-row').style.display   = 'none';
+  $('qc-compare-row').style.display  = 'none';
+  $('qc-ai-analysis').style.display  = 'none';
+  $('qc-summary-card').style.display = 'none';
+
+  // Guard: optimization must have been run first
+  if (!state.result) {
+    $('qc-status').innerHTML = '<div class="qc-error">No optimization result found. Please run an optimization first (Page 1).</div>';
+    console.log('runQualityCheck: state.result is null, aborting');
+    return;
+  }
+
+  const originalPrompt  = state.prompt || '';
+  const finalPrompt     = state.result.finalPrompt || '';
+  const ts              = state.result.tokenStats || {};
+  const tokensBefore    = ts.original || 0;
+  const tokensAfter     = ts['final'] || 0;
+
+  console.log('sending:', originalPrompt, finalPrompt, tokensBefore, tokensAfter);
+
+  $('qc-status').innerHTML = '<div class="qc-loading"><span class="spinner-dark"></span>Analyzing prompt quality via AI — this may take a few seconds…</div>';
+
+  try {
+    const res = await fetch('/api/compare', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({
+        originalPrompt,
+        optimizedPrompt: finalPrompt,
+        tokensBefore,
+        tokensAfter,
+      }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+      throw new Error(err.error || `HTTP ${res.status}`);
+    }
+
+    const data = await res.json();
+    console.log('compare result:', data);
+    $('qc-status').innerHTML = '';
+    renderQualityPage(data, tokensBefore, tokensAfter);
+
+  } catch (err) {
+    console.error('runQualityCheck fetch error:', err);
+    $('qc-status').innerHTML = `<div class="qc-error">Error: ${escHtml(err.message)}</div>`;
+  }
+}
+
+function renderQualityPage(data, tokensBefore, tokensAfter) {
+  // Prompt display
+  $('qc-orig-prompt').textContent  = data.originalPrompt  || '';
+  $('qc-opt-prompt').textContent   = data.optimizedPrompt || '';
+  $('qc-prompt-row').style.display = 'grid';
+
+  // Score badges (averages)
+  $('qc-orig-badge').textContent = `${data.originalScore}/10`;
+  $('qc-orig-badge').className   = 'score-badge ' + scoreBadgeClass(data.originalScore);
+  $('qc-opt-badge').textContent  = `${data.optimizedScore}/10`;
+  $('qc-opt-badge').className    = 'score-badge ' + scoreBadgeClass(data.optimizedScore);
+
+  // Answer text
+  $('qc-orig-answer').textContent = data.originalAnswer;
+  $('qc-opt-answer').textContent  = data.optimizedAnswer;
+
+  // Dimension scores
+  $('qc-orig-dims').innerHTML = buildDimsHTML(
+    data.relevanceScoreBefore, data.densityScoreBefore, data.clarityScoreBefore
+  );
+  $('qc-opt-dims').innerHTML = buildDimsHTML(
+    data.relevanceScoreAfter, data.densityScoreAfter, data.clarityScoreAfter
+  );
+
+  $('qc-compare-row').style.display = 'grid';
+
+  // AI analysis card
+  if (data.naturalSummary) {
+    $('qc-natural-summary').textContent = data.naturalSummary;
+    $('qc-ai-analysis').style.display = 'block';
+  }
+
+  // Summary card
+  const tokenSavePct = tokensBefore > 0
+    ? Math.round((tokensBefore - tokensAfter) / tokensBefore * 100)
+    : 0;
+
+  const score      = data.optimizationScore;
+  const scoreText  = (score > 0 ? '+' : '') + score.toFixed(2) + '%';
+  const scoreCls   = score > 0 ? 'positive' : score < 0 ? 'negative' : 'neutral';
+  const el         = $('qc-summary-score');
+  el.textContent   = scoreText;
+  el.className     = 'qc-efficiency ' + scoreCls;
+
+  $('qc-verdict').textContent       = data.verdict;
+  $('qc-verdict').className         = 'qc-verdict ' + verdictClass(data.verdict);
+  $('qc-token-saving').textContent  = `Token reduction: ${tokenSavePct}%  (${tokensBefore} → ${tokensAfter} tokens)`;
+  $('qc-summary-card').style.display = 'block';
+}
+
+function buildDimsHTML(relevance, density, clarity) {
+  const dims = [
+    { label: '切题性',    score: relevance },
+    { label: '信息密度',  score: density   },
+    { label: '表达清晰度', score: clarity  },
+  ];
+  return dims.map(({ label, score }) => {
+    const s   = score || 0;
+    const cls = s >= 7 ? 'dim-fill-green' : s >= 5 ? 'dim-fill-yellow' : 'dim-fill-red';
+    return `
+      <div class="dim-row">
+        <span class="dim-label">${label}</span>
+        <div class="dim-bar-wrap"><div class="dim-bar-fill ${cls}" style="width:${s * 10}%"></div></div>
+        <span class="dim-score">${s}</span>
+      </div>`;
+  }).join('');
+}
+
+function scoreBadgeClass(score) {
+  if (score >= 8) return 'score-green';
+  if (score >= 5) return 'score-yellow';
+  return 'score-red';
+}
+
+function verdictClass(verdict) {
+  if (verdict === '显著提升') return 'verdict-great';
+  if (verdict === '轻微提升') return 'verdict-good';
+  if (verdict === '无明显变化') return 'verdict-neutral';
+  return 'verdict-bad';
+}
 
 // ═══════════════════════════════════════════════════════════════
 // BOOT

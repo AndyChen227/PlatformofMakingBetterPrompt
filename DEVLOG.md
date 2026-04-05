@@ -14,10 +14,10 @@
 
 （每次更新都要更新这一栏）
 
-- 当前版本：v1.3
-- 当前阶段：UI 重构中
-- 已完成模块数：7/7（Level 1 + Level 2 全部实现）
-- 下一步：接入 Anthropic Claude API
+- 当前版本：v2.0
+- 当前阶段：Quality Check 已上线
+- 已完成模块数：8/8（Level 1 + Level 2 + Quality Check）
+- 下一步：AI Generate 功能接入（AiPromptGenerator.java）
 
 ---
 
@@ -73,6 +73,19 @@
 
 ---
 
+### ✅ v2.0 — Quality Check 功能（2026/4/4）
+
+产出：
+- `POST /api/compare` 接口
+- `QualityComparisonController`：OpenAI gpt-4o-mini 并行回答生成 + 三维度打分（切题性/信息密度/表达清晰度）+ Token 效率比计算
+- `QualityComparisonResult`：完整结果模型（6个维度分、综合分、naturalSummary、optimizationScore、verdict）
+- 前端第四页 Quality Check：两列回答对比 + 维度进度条 + AI 自然语言分析卡片 + Token Efficiency Gain 展示
+- 第三页由 "Final Result" 改名为 "Token Analysis"
+
+状态：Quality Check 全链路上线，含后端 OpenAI 调用和前端可视化
+
+---
+
 ### ✅ v1.3 — UI 重构（2026/3/31）
 
 产出：
@@ -91,8 +104,7 @@
 
 | 功能 | 优先级 | 说明 |
 |------|--------|------|
-| Claude API 接入（AI Generate） | 高 | AiPromptGenerator.java 已预留接口 |
-| Claude API 接入（质量对比） | 高 | 优化前后各发一次，对比回答质量 |
+| OpenAI API 接入（AI Generate） | 高 | AiPromptGenerator.java 已预留接口 |
 | 真实 BPE Tokenizer | 中 | 替换 TokenCounter 的空格估算 |
 | Level 3 上下文优化 | 中 | 历史裁剪、摘要记忆、相关性过滤 |
 | Level 4 系统级优化 | 低 | 缓存、模型分流、任务拆分 |
@@ -111,6 +123,7 @@
 | 2026/3/26 | TaskAnalyzer 用关键词分类而非 ML | 第一版快速实现，架构支持后续替换为 ML 分类器 |
 | 2026/3/27 | AI Generate 先占位不实现 | 框架优先，API 接入作为独立迭代 |
 | 2026/3/31 | 改为三页 SPA 而非单页 | 内容太多，分页后每页更专注，演示效果更好 |
+| 2026/4/4 | 用 Token 效率比替代线性加权公式 | 效率比 = 每个 token 产出的质量，和项目核心目标"提高 token 使用效率"直接对应，有明确经济学含义；加权公式参数主观，无法解释 |
 
 ---
 
@@ -164,11 +177,10 @@
 
 ## 下一步行动
 
-1. 完成 UI 重构测试，确认三页流程跑通
-2. 接入 Anthropic Claude API（AI Generate 功能）
-3. 实现优化前后质量对比功能
-4. 更新本日志
+1. 接入 OpenAI API 实现 AI Generate 功能（`AiPromptGenerator.java`）
+2. 替换 `TokenCounter` 为真实 BPE tokenizer
+3. 更新本日志
 
 ---
 
-*最后更新：2026/3/31 · 维护人：Andy*
+*最后更新：2026/4/4 · 维护人：Andy*

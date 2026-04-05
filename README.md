@@ -40,7 +40,7 @@ This project models the optimization process as a **configurable pipeline of dis
 
 ## Features
 
-### Three-Page UI
+### Four-Page UI
 
 **Page 1 — Input & Configuration**
 - Paste or generate a prompt in the left column
@@ -54,12 +54,20 @@ This project models the optimization process as a **configurable pipeline of dis
 - Side-by-side before/after text diff per step
 - Token savings accumulate across steps
 
-**Page 3 — Final Result**
+**Page 3 — Token Analysis**
 - Original prompt vs. optimized prompt comparison
 - Aggregate compression statistics: original tokens, final tokens, compression rate
 - Bar chart showing token savings broken down by rule
 - Applied rules displayed as chips
-- Actions to re-optimize or reset
+- Actions to re-optimize, reset, or proceed to Quality Check
+
+**Page 4 — Quality Check**
+- Side-by-side display of ChatGPT's responses to the original and optimized prompts
+- Three-dimension scoring: Relevance, Information Density, Clarity (each 1–10, strict rubric)
+- Per-dimension progress bars with colour coding (green ≥7 / yellow ≥5 / red <5)
+- Token Efficiency Gain: quantifies optimization as `(quality/token after − quality/token before) / efficiency before × 100%`
+- Four-level verdict: 显著提升 (≥20%) / 轻微提升 (≥5%) / 无明显变化 (≥−5%) / 优化后变差 (<−5%)
+- AI natural-language analysis: 3–5 sentence Chinese summary of what specifically changed across all three dimensions
 
 ### Prompt Generator
 
@@ -467,6 +475,59 @@ Run the full optimization pipeline on a prompt.
   }
 }
 ```
+
+---
+
+### POST /api/compare
+
+Run a quality comparison between the original and optimized prompt by querying GPT-4o-mini for both answers, scoring them across three dimensions, and computing the token efficiency gain.
+
+**Request body:**
+
+```json
+{
+  "originalPrompt":  "Hello! Could you please help me understand what recursion is?",
+  "optimizedPrompt": "Explain recursion.",
+  "tokensBefore":    13,
+  "tokensAfter":     3
+}
+```
+
+**Response:**
+
+```json
+{
+  "originalPrompt":       "Hello! Could you please help me understand what recursion is?",
+  "optimizedPrompt":      "Explain recursion.",
+  "originalAnswer":       "Recursion is when a function calls itself...",
+  "optimizedAnswer":      "Recursion is a technique where a function calls itself to solve a smaller version of the same problem...",
+  "originalScore":        7,
+  "optimizedScore":       8,
+  "relevanceScoreBefore": 7,
+  "relevanceScoreAfter":  8,
+  "densityScoreBefore":   6,
+  "densityScoreAfter":    8,
+  "clarityScoreBefore":   7,
+  "clarityScoreAfter":    7,
+  "naturalSummary":       "优化后的 prompt 更加简洁直接，切题性从 7 分提升到 8 分，因为去掉了礼貌用语后模型直接回答核心概念。信息密度提升明显，冗余铺垫减少后每句话都在传递有效信息。表达清晰度保持不变，两个回答的逻辑结构相近。综合来看这次优化是值得的，用更少的 token 换来了更聚焦的回答。",
+  "tokensBefore":         13,
+  "tokensAfter":          3,
+  "optimizationScore":    136.75,
+  "verdict":              "显著提升"
+}
+```
+
+**Field reference:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `originalScore` / `optimizedScore` | `int` | Average of the three dimension scores, rounded |
+| `relevanceScoreBefore/After` | `int` | Relevance dimension (1–10) |
+| `densityScoreBefore/After` | `int` | Information density dimension (1–10) |
+| `clarityScoreBefore/After` | `int` | Clarity dimension (1–10) |
+| `naturalSummary` | `String` | 3–5 sentence Chinese analysis from the model |
+| `optimizationScore` | `double` | Token efficiency gain (%) — positive = more quality per token |
+| `verdict` | `String` | 显著提升 / 轻微提升 / 无明显变化 / 优化后变差 |
 
 ---
 
