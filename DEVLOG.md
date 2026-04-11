@@ -14,10 +14,10 @@
 
 （每次更新都要更新这一栏）
 
-- 当前版本：v2.0
-- 当前阶段：Quality Check 已上线
-- 已完成模块数：8/8（Level 1 + Level 2 + Quality Check）
-- 下一步：AI Generate 功能接入（AiPromptGenerator.java）
+- 当前版本：v2.1
+- 当前阶段：AI Generate 已上线
+- 已完成模块数：9/9（Level 1 + Level 2 + Quality Check + AI Generate）
+- 下一步：替换 TokenCounter 为真实 BPE tokenizer
 
 ---
 
@@ -73,6 +73,21 @@
 
 ---
 
+### ✅ v2.1 — AI Generate 功能上线（2026/4/7）
+
+产出：
+- `AiPromptGenerator`：接入 OpenAI gpt-4o-mini，实现 `generate(taskType, verbosity)` 方法
+  - 英文 system prompt，明确要求输出英文 prompt，按 HIGH/MEDIUM/LOW 控制冗余风格
+  - 英文 user message：`"Generate a {taskType} prompt with verbosity level {verbosity}."`
+  - 用 `java.net.http.HttpClient` 调用，复用与 `QualityComparisonController` 完全一致的 JSON 构造和解析逻辑
+  - 异常时返回 `"AI generation failed: " + 错误信息`
+- `AI Generate` 按钮激活：移除 `disabled`，加入 confirm 确认弹窗（`"Generate a prompt using AI? This may take a few seconds."`）
+- 生成结果为英文 prompt，覆盖5种任务类型 × 3种 verbosity
+
+状态：AI Generate 全链路上线，与 Quality Check 共享 OpenAI API key
+
+---
+
 ### ✅ v2.0 — Quality Check 功能（2026/4/4）
 
 产出：
@@ -104,7 +119,6 @@
 
 | 功能 | 优先级 | 说明 |
 |------|--------|------|
-| OpenAI API 接入（AI Generate） | 高 | AiPromptGenerator.java 已预留接口 |
 | 真实 BPE Tokenizer | 中 | 替换 TokenCounter 的空格估算 |
 | Level 3 上下文优化 | 中 | 历史裁剪、摘要记忆、相关性过滤 |
 | Level 4 系统级优化 | 低 | 缓存、模型分流、任务拆分 |
@@ -124,6 +138,7 @@
 | 2026/3/27 | AI Generate 先占位不实现 | 框架优先，API 接入作为独立迭代 |
 | 2026/3/31 | 改为三页 SPA 而非单页 | 内容太多，分页后每页更专注，演示效果更好 |
 | 2026/4/4 | 用 Token 效率比替代线性加权公式 | 效率比 = 每个 token 产出的质量，和项目核心目标"提高 token 使用效率"直接对应，有明确经济学含义；加权公式参数主观，无法解释 |
+| 2026/4/7 | AI Generate 用 OpenAI 而非 Anthropic | 与 Quality Check 复用同一 API key 和调用方式，零新增依赖；Anthropic API 格式不同，切换需单独适配 |
 
 ---
 
@@ -177,10 +192,9 @@
 
 ## 下一步行动
 
-1. 接入 OpenAI API 实现 AI Generate 功能（`AiPromptGenerator.java`）
-2. 替换 `TokenCounter` 为真实 BPE tokenizer
-3. 更新本日志
+1. 替换 `TokenCounter` 为真实 BPE tokenizer
+2. 更新本日志
 
 ---
 
-*最后更新：2026/4/4 · 维护人：Andy*
+*最后更新：2026/4/7 · 维护人：Andy*

@@ -611,8 +611,6 @@ Generate a sample prompt for testing the optimizer.
 }
 ```
 
-> **Note:** `source=ai` is currently a stub. It returns a placeholder until the Claude API integration is complete (see Roadmap).
-
 ---
 
 ## Tech Stack
@@ -678,7 +676,7 @@ Open `http://localhost:8080` in your browser.
 - [x] v1.1 — Level 1 & Level 2 rule implementations with real algorithms
 - [x] v1.2 — Prompt Generator template library (45 templates)
 - [x] v1.3 — Three-page SPA + pipeline visualization UI
-- [ ] v2.0 — Claude API integration (AI Generate + quality comparison)
+- [x] v2.0 — OpenAI API integration (AI Generate + quality comparison)
 - [ ] v2.1 — Real BPE tokenizer to replace whitespace-split approximation
 - [ ] v3.0 — Level 3: context optimization (deduplication, reference compression)
 - [ ] v4.0 — Level 4 & 5: system-level optimization (system prompt factoring, conversation compression)
@@ -711,4 +709,4 @@ Exposing raw numbers to a UI creates a usability problem: a user setting `aggres
 
 ---
 
-*Built by Andy · 2026*
+*Built by Andy · 2026 · Last updated 2026/04/07*

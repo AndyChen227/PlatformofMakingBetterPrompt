@@ -339,17 +339,25 @@ async function callOptimize() {
 // API: GENERATOR
 // ═══════════════════════════════════════════════════════════════
 
-async function callGenerator() {
+// source = 'template'（默认）或 'ai'，由按钮的 onclick 传入
+async function callGenerator(source = 'template') {
   const type      = $('genTaskType').value;
   const verbosity = $('genVerbosity').value;
-  const btn       = $('btnGenTemplate');
+  const isAi      = source === 'ai';
+
+  // AI 生成前弹出原生确认框，用户点击 Cancel 则直接返回不执行任何操作
+  if (isAi && !confirm('Generate a prompt using AI? This may take a few seconds.')) {
+    return;
+  }
+
+  const btn = isAi ? $('btnGenAi') : $('btnGenTemplate');
 
   btn.disabled    = true;
-  btn.textContent = '...';
+  btn.textContent = isAi ? '🤖 Generating...' : '...';
   $('genMeta').textContent = '';
 
   try {
-    const url = `/api/generator/prompt?type=${encodeURIComponent(type)}&verbosity=${encodeURIComponent(verbosity)}&source=template`;
+    const url = `/api/generator/prompt?type=${encodeURIComponent(type)}&verbosity=${encodeURIComponent(verbosity)}&source=${encodeURIComponent(source)}`;
     const res = await fetch(url);
 
     if (!res.ok) {
@@ -375,8 +383,8 @@ async function callGenerator() {
   } catch (err) {
     $('genMeta').textContent = `Error: ${err.message}`;
   } finally {
-    btn.disabled    = false;
-    btn.innerHTML   = '⚡ Generate Template';
+    btn.disabled  = false;
+    btn.innerHTML = isAi ? '🤖 AI Generate' : '⚡ Generate Template';
   }
 }
 

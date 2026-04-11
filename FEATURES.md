@@ -1,4 +1,4 @@
-# BetterPrompt 功能清单 v2.0
+# BetterPrompt 功能清单 v2.1
 
 > 本文档根据实际代码生成，记录项目每个功能的实现状态、细节和验证方式。
 > 更新规则：每完成或修改一个功能，同步更新对应条目。
@@ -12,13 +12,11 @@
 | 后端核心框架 | 4 | 3 | 1 | 0 |
 | Level 1 优化规则 | 4 | 2 | 2 | 0 |
 | Level 2 优化规则 | 3 | 0 | 3 | 0 |
-| Prompt Generator | 2 | 1 | 0 | 1 |
+| Prompt Generator | 2 | 2 | 0 | 0 |
 | REST API | 4 | 4 | 0 | 0 |
 | 前端 UI | 5 | 5 | 0 | 0 |
 | 质量对比（Quality Check） | 6 | 6 | 0 | 0 |
-| **合计** | **28** | **21** | **6** | **1** |
-
-> 注：前端 Page 1 的"AI Generate"按钮 UI 已实现但功能被禁用（`disabled` 属性），依赖 AiPromptGenerator 后端实现。
+| **合计** | **28** | **22** | **6** | **0** |
 
 ---
 
@@ -461,20 +459,20 @@ actually
 ---
 
 ### 4.2 AI 生成（AiPromptGenerator）
-❌ 未实现（占位符）
+✅ 已完成
 
-**当前行为**（`AiPromptGenerator.java`）：`generate()` 直接返回固定字符串 `"AI generation coming soon."`
+**接口**：`generate(String taskType, String verbosity)` → `String`
 
-**预留接口**：`generate(String taskType, String verbosity)` → `String`
+**实现细节**（`AiPromptGenerator.java`）：
+- 调用 `POST https://api.openai.com/v1/chat/completions`，model `gpt-4o-mini`
+- 用 `@Value("${openai.api.key}")` 注入 API key，与 `QualityComparisonController` 共享同一 key
+- 使用 `java.net.http.HttpClient`，零新增依赖
+- system prompt（英文）：指导模型按 verbosity 控制措辞风格；HIGH = 大量问候语和 filler 词，MEDIUM = 适量礼貌用语，LOW = 简洁直接
+- user message（英文）：`"Generate a {taskType} prompt with verbosity level {verbosity}."`
+- 输出为英文 prompt，覆盖 CODING / EXPLAIN / DEBUG / WRITING / COMPARE × LOW / MEDIUM / HIGH
+- 异常时返回 `"AI generation failed: " + 错误信息`
 
-**接入 Claude API 的实现计划**（来自代码注释 TODO）：
-1. 从 `application.properties` 注入 `anthropic.api.key`（key 已预留，当前为空字符串）
-2. 构建 system prompt：`"Generate a realistic user prompt for task type X at verbosity level Y. Verbosity HIGH = full of greetings and filler words."`
-3. 调用 `POST https://api.anthropic.com/v1/messages`，model 为 `claude-opus-4-6`
-4. 解析响应的 content block，返回文本
-5. 添加错误处理 / 指数退避重试
-
-**前端状态**：`index.html` 中"AI Generate"按钮带有 `disabled` 属性和 tooltip `"Coming Soon — Claude API integration"`
+**前端状态**：`index.html` 中"AI Generate"按钮已激活，点击后弹出 confirm 确认弹窗（`"Generate a prompt using AI? This may take a few seconds."`），用户确认后调用 `GET /api/generator/prompt?source=ai`
 
 ---
 
@@ -638,7 +636,7 @@ Content-Type: application/json
 - Task Type 下拉：CODING / EXPLAIN / DEBUG / WRITING / COMPARE
 - Verbosity 下拉：LOW / MEDIUM（默认选中）/ HIGH
 - `⚡ Generate Template` 按钮：调用 `GET /api/generator/prompt?source=template`，成功后将 prompt 写入 textarea 并触发蓝色边框闪烁动画（800ms）；按钮 loading 状态显示 `"..."`；成功后 meta 区域显示 `"✓ Generated: TYPE · VERBOSITY · source"`
-- `🤖 AI Generate` 按钮：带 `disabled` 属性和 tooltip `"Coming Soon — Claude API integration"`，完全不可点击
+- `🤖 AI Generate` 按钮：可点击，调用 `GET /api/generator/prompt?source=ai`；点击前弹出浏览器原生 confirm 对话框（`"Generate a prompt using AI? This may take a few seconds."`），用户取消则不发起请求；loading 状态显示 `"🤖 Generating..."`
 
 **输入框功能**：
 - `textarea` 实时监听 `input` 事件
@@ -877,12 +875,11 @@ optimizationScore = (efficiencyAfter - efficiencyBefore) / efficiencyBefore × 1
 
 ### 优先级高
 
-**Claude API 接入 — AI Generate 按钮**
-- 📋 待开发
-- 入口：`AiPromptGenerator.java` 的 `generate()` 方法 TODO
-- 前置条件：在 `application.properties` 中填入 `anthropic.api.key`
-- 实现计划：POST `https://api.anthropic.com/v1/messages`，model `claude-opus-4-6`，system prompt 指定任务类型和废话程度，解析 content[0].text 返回
-- 前端联动：移除 `index.html` 中 AI Generate 按钮的 `disabled` 属性，改传 `source=ai`
+**OpenAI API 接入 — AI Generate 按钮**
+- ✅ 已完成（v2.1）
+- `AiPromptGenerator.generate()` 调用 OpenAI gpt-4o-mini，生成英文 prompt，覆盖 5 种任务类型 × 3 种 verbosity
+- AI Generate 按钮已激活，含 confirm 确认弹窗（`"Generate a prompt using AI? This may take a few seconds."`）
+- 详见 [4.2 AI 生成](#42-ai-生成aiprompteenerator)
 
 ### 优先级中
 
@@ -916,4 +913,4 @@ optimizationScore = (efficiencyAfter - efficiencyBefore) / efficiencyBefore × 1
 
 ---
 
-*最后更新：2026/04/04 · 维护人：Andy*
+*最后更新：2026/04/07 · 维护人：Andy*
