@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BetterPrompt — Token Optimizer</title>
+  <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════
+     MODAL OVERLAY
+═══════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="modalOverlay" onclick="closeModal()">
+  <div class="modal" id="modal" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <div class="modal-header-left">
+        <span class="modal-title" id="modalTitle"></span>
+        <span class="modal-level-badge" id="modalLevelBadge"></span>
+      </div>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-body" id="modalBody"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     TOP NAV
+═══════════════════════════════════════════════════════════ -->
+<nav class="top-nav">
+  <div class="nav-left">
+    <div class="nav-logo">BP</div>
+    <span class="nav-brand">BetterPrompt</span>
+    <div class="nav-divider"></div>
+    <span class="nav-sub">LLM Token Optimizer</span>
+  </div>
+
+  <div class="nav-crumbs">
+    <button class="crumb" id="crumb1" onclick="crumbClick(1)">
+      <span class="crumb-num">①</span>
+      <span class="crumb-label">Input &amp; Config</span>
+    </button>
+    <span class="crumb-arrow">›</span>
+    <button class="crumb" id="crumb2" onclick="crumbClick(2)">
+      <span class="crumb-num">②</span>
+      <span class="crumb-label">Optimization Pipeline</span>
+    </button>
+    <span class="crumb-arrow">›</span>
+    <button class="crumb" id="crumb3" onclick="crumbClick(3)">
+      <span class="crumb-num">③</span>
+      <span class="crumb-label">Token Analysis</span>
+    </button>
+    <span class="crumb-arrow">›</span>
+    <button class="crumb" id="crumb4" onclick="crumbClick(4)">
+      <span class="crumb-num">④</span>
+      <span class="crumb-label">Quality Check</span>
+    </button>
+  </div>
+
+  <div class="nav-right">
+    <div class="nav-status" id="navStatus"></div>
+  </div>
+</nav>
+
+<!-- ═══════════════════════════════════════════════════════
+     PAGE 1: INPUT & CONFIG  — two-column layout
+═══════════════════════════════════════════════════════════ -->
+<div id="page-1" class="page page-two-col">
+
+  <!-- ══════════ LEFT COLUMN ══════════ -->
+  <div class="p1-left">
+    <div class="p1-left-inner">
+
+      <!-- Intro header -->
+      <div class="p1-intro">
+        <span class="p1-intro-brand">BetterPrompt</span>
+        <span class="p1-intro-desc">Enter or generate a prompt, then click Optimize to reduce token usage.</span>
+      </div>
+
+      <!-- Prompt Generator card -->
+      <div class="card generator-card">
+        <div class="card-left-bar bar-blue"></div>
+        <div class="card-content">
+          <div class="card-head-row">
+            <span class="card-head-title">Prompt Generator</span>
+            <span class="badge badge-yellow">Template</span>
+          </div>
+          <div class="gen-body">
+            <div class="gen-selects">
+              <div class="gen-field">
+                <label class="gen-label">Task Type</label>
+                <select id="genTaskType" class="gen-select">
+                  <option value="CODING">CODING</option>
+                  <option value="EXPLAIN">EXPLAIN</option>
+                  <option value="DEBUG">DEBUG</option>
+                  <option value="WRITING">WRITING</option>
+                  <option value="COMPARE">COMPARE</option>
+                </select>
+              </div>
+              <div class="gen-field">
+                <label class="gen-label">Verbosity</label>
+                <select id="genVerbosity" class="gen-select">
+                  <option value="LOW">LOW</option>
+                  <option value="MEDIUM" selected>MEDIUM</option>
+                  <option value="HIGH">HIGH</option>
+                </select>
+              </div>
+            </div>
+            <div class="gen-btns">
+              <button class="btn btn-primary btn-sm" id="btnGenTemplate" onclick="callGenerator()">⚡ Generate Template</button>
+              <button class="btn btn-outline btn-sm" onclick="callGenerator('ai')" id="btnGenAi">🤖 AI Generate</button>
+            </div>
+            <div class="gen-meta" id="genMeta"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Prompt textarea -->
+      <div class="prompt-section">
+        <label class="section-label-small">Your Prompt</label>
+        <textarea id="promptTextarea" class="prompt-textarea"
+                  placeholder="Paste or generate a prompt here..."></textarea>
+        <div class="textarea-footer">
+          <span class="word-count" id="wordCount">0 words</span>
+          <span class="char-count" id="charCount">0 characters</span>
+        </div>
+      </div>
+
+      <!-- Optimize button -->
+      <div style="margin-top:28px;">
+        <button class="btn btn-primary btn-optimize" id="btnOptimize" onclick="callOptimize()">
+          Optimize →
+        </button>
+        <div class="optimize-error" id="optimizeError"></div>
+      </div>
+
+    </div>
+  </div><!-- /p1-left -->
+
+  <!-- ══════════ RIGHT COLUMN ══════════ -->
+  <div class="p1-right">
+    <div class="p1-right-inner">
+
+      <div class="strategies-heading">
+        <h2 class="section-title">Optimization Strategies</h2>
+        <p class="section-subtitle">Select and configure which rules to apply</p>
+      </div>
+
+      <!-- Level 1 block -->
+      <div class="level-block" style="margin-top:20px;">
+        <div class="level-block-header">
+          <span class="badge badge-blue-lg">Level 1 · Input Processing</span>
+          <span class="level-count">6 rules</span>
+        </div>
+
+        <!-- InputCleaner -->
+        <div class="rule-card level1" id="rcard-inputCleaner">
+          <div class="rule-left-bar bar-blue"></div>
+          <div class="rule-body">
+            <div class="rule-row1">
+              <div class="rule-row1-left">
+                <label class="toggle">
+                  <input type="checkbox" class="rule-toggle" data-rule="inputCleaner" checked />
+                  <span class="toggle-track"></span>
+                </label>
+                <span class="rule-name">Input Cleaner</span>
+              </div>
+              <button class="info-btn" onclick="showModal('inputCleaner')" title="Learn more">ℹ</button>
+            </div>
+            <div class="rule-desc">Removes greetings &amp; filler openers</div>
+            <div class="rule-params" id="params-inputCleaner">
+              <div class="tier-group" data-rule="inputCleaner" data-param="aggressiveness">
+                <button class="tier-btn" data-value="20">LOW</button>
+                <button class="tier-btn active" data-value="50">MID</button>
+                <button class="tier-btn" data-value="85">HIGH</button>
+              </div>
+              <div class="tier-hints">
+                <span>Only greetings</span>
+                <span>+ polite openers</span>
+                <span>+ all fillers</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TaskAnalyzer -->
+        <div class="rule-card level1" id="rcard-taskAnalyzer">
+          <div class="rule-left-bar bar-blue"></div>
+          <div class="rule-body">
+            <div class="rule-row1">
+              <div class="rule-row1-left">
+                <label class="toggle">
+                  <input type="checkbox" class="rule-toggle" data-rule="taskAnalyzer" checked />
+                  <span class="toggle-track"></span>
+                </label>
+                <span class="rule-name">Task Analyzer</span>
+              </div>
+              <button class="info-btn" onclick="showModal('taskAnalyzer')" title="Learn more">ℹ</button>
+            </div>
+            <div class="rule-desc">Classifies task type &amp; complexity</div>
+          </div>
+        </div>
+
+        <!-- SemanticCompressor -->
+        <div class="rule-card level1" id="rcard-semanticCompressor">
+          <div class="rule-left-bar bar-blue"></div>
+          <div class="rule-body">
+            <div class="rule-row1">
+              <div class="rule-row1-left">
+                <label class="toggle">
+                  <input type="checkbox" class="rule-toggle" data-rule="semanticCompressor" checked />
+                  <span class="toggle-track"></span>
+                </label>
+                <span class="rule-name">Semantic Compressor</span>
+              </div>
+              <button class="info-btn" onclick="showModal('semanticCompressor')" title="Learn more">ℹ</button>
+            </div>
+            <div class="rule-desc">Replaces verbose phrases with concise ones</div>
+            <div class="rule-params" id="params-semanticCompressor">
+              <div class="tier-group" data-rule="semanticCompressor" data-param="compressionLevel">
+                <button class="tier-btn" data-value="20">LOW</button>
+                <button class="tier-btn active" data-value="50">MID</button>
+                <button class="tier-btn" data-value="85">HIGH</button>
+              </div>
+              <div class="tier-hints">
+                <span>8 substitutions</span>
+                <span>19 substitutions</span>
+                <span>29 substitutions</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- StructureMinimizer -->
+        <div class="rule-card level1" id="rcard-structureMinimizer">
+          <div class="rule-left-bar bar-blue"></div>
+          <div class="rule-body">
+            <div class="rule-row1">
+              <div class="rule-row1-left">
+                <label class="toggle">
+                  <input type="checkbox" class="rule-toggle" data-rule="structureMinimizer" checked />
+                  <span class="toggle-track"></span>
+                </label>
+                <span class="rule-name">Structure Minimizer</span>
+              </div>
+              <button class="info-btn" onclick="showModal('structureMinimizer')" title="Learn more">ℹ</button>
+            </div>
+            <div class="rule-desc">Collapses redundant whitespace &amp; blank lines</div>
+          </div>
+        </div>
+
+        <!-- PunctuationNormalizer -->
+        <div class="rule-card level1" id="rcard-punctuationNormalizer">
+          <div class="rule-left-bar bar-blue"></div>
+          <div class="rule-body">
+            <div class="rule-row1">
+              <div class="rule-row1-left">
+                <label class="toggle">
+                  <input type="checkbox" class="rule-toggle" data-rule="punctuationNormalizer" checked />
+                  <span class="toggle-track"></span>
+                </label>
+                <span class="rule-name">Punctuation Normalizer</span>
+              </div>
+              <button class="info-btn" onclick="showModal('punctuationNormalizer')" title="Learn more">ℹ</button>
+            </div>
+            <div class="rule-desc">Compresses repeated punctuation marks</div>
+          </div>
+        </div>
+
+        <!-- NumberNormalizer -->
+        <div class="rule-card level1" id="rcard-numberNormalizer">
+          <div class="rule-left-bar bar-blue"></div>
+          <div class="rule-body">
+            <div class="rule-row1">
+              <div class="rule-row1-left">
+                <label class="toggle">
+                  <input type="checkbox" class="rule-toggle" data-rule="numberNormalizer" checked />
+                  <span class="toggle-track"></span>
+                </label>
+                <span class="rule-name">Number Normalizer</span>
+              </div>
+              <button class="info-btn" onclick="showModal('numberNormalizer')" title="Learn more">ℹ</button>
+            </div>
+            <div class="rule-desc">Converts written numbers to numeric form</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Level 2 block -->
+      <div class="level-block" style="margin-top:16px;">
+        <div class="level-block-header">
+          <span class="badge badge-red-lg">Level 2 · Output Control</span>
+          <span class="level-count">3 rules</span>
+        </div>
+
+        <!-- LengthControl -->
+        <div class="rule-card level2" id="rcard-lengthControl">
+          <div class="rule-left-bar bar-red"></div>
+          <div class="rule-body">
+            <div class="rule-row1">
+              <div class="rule-row1-left">
+                <label class="toggle">
+                  <input type="checkbox" class="rule-toggle" data-rule="lengthControl" checked />
+                  <span class="toggle-track"></span>
+                </label>
+                <span class="rule-name">Length Control</span>
+              </div>
+              <button class="info-btn" onclick="showModal('lengthControl')" title="Learn more">ℹ</button>
+            </div>
+            <div class="rule-desc">Truncates text exceeding word budget</div>
+            <div class="rule-params" id="params-lengthControl">
+              <label class="maxwords-label">
+                Max words:
+                <input type="number" id="maxWordsInput" class="maxwords-input" value="50" min="10" max="500" />
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- FormatControl -->
+        <div class="rule-card level2" id="rcard-formatControl">
+          <div class="rule-left-bar bar-red"></div>
+          <div class="rule-body">
+            <div class="rule-row1">
+              <div class="rule-row1-left">
+                <label class="toggle">
+                  <input type="checkbox" class="rule-toggle" data-rule="formatControl" checked />
+                  <span class="toggle-track"></span>
+                </label>
+                <span class="rule-name">Format Control</span>
+              </div>
+              <button class="info-btn" onclick="showModal('formatControl')" title="Learn more">ℹ</button>
+            </div>
+            <div class="rule-desc">Compacts verbose formatting instructions</div>
+          </div>
+        </div>
+
+        <!-- RedundancySuppressor -->
+        <div class="rule-card level2" id="rcard-redundancySuppressor">
+          <div class="rule-left-bar bar-red"></div>
+          <div class="rule-body">
+            <div class="rule-row1">
+              <div class="rule-row1-left">
+                <label class="toggle">
+                  <input type="checkbox" class="rule-toggle" data-rule="redundancySuppressor" checked />
+                  <span class="toggle-track"></span>
+                </label>
+                <span class="rule-name">Redundancy Suppressor</span>
+              </div>
+              <button class="info-btn" onclick="showModal('redundancySuppressor')" title="Learn more">ℹ</button>
+            </div>
+            <div class="rule-desc">Removes closing filler sentences</div>
+          </div>
+        </div>
+
+      </div><!-- /level2 block -->
+    </div><!-- /p1-right-inner -->
+  </div><!-- /p1-right -->
+
+</div><!-- /page-1 -->
+
+
+<!-- ═══════════════════════════════════════════════════════
+     PAGE 2: PIPELINE
+═══════════════════════════════════════════════════════════ -->
+<div id="page-2" class="page page-single" style="display:none;">
+  <div class="single-inner">
+
+    <div class="page-head-row">
+      <div>
+        <h1 class="page-title">Optimization Pipeline</h1>
+        <p class="page-subtitle">Step-by-step breakdown of each rule's execution</p>
+      </div>
+      <div class="page-head-btns">
+        <button class="btn btn-outline" onclick="goToPage(1)">← Back</button>
+        <button class="btn btn-primary" onclick="goToPage(3)">View Final Result →</button>
+      </div>
+    </div>
+
+    <div class="stats-bar" id="statsBar2"></div>
+    <div id="pipelineSteps"></div>
+
+    <div class="page-bottom-btns">
+      <button class="btn btn-outline" onclick="goToPage(1)">← Back to Input</button>
+      <button class="btn btn-primary" onclick="goToPage(3)">View Final Result →</button>
+    </div>
+
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════
+     PAGE 3: FINAL RESULT
+═══════════════════════════════════════════════════════════ -->
+<div id="page-3" class="page page-single" style="display:none;">
+  <div class="single-inner">
+
+    <div class="page-head-row">
+      <div>
+        <h1 class="page-title">Token Analysis</h1>
+        <p class="page-subtitle">Compare original and optimized prompts</p>
+      </div>
+      <div class="page-head-btns">
+        <button class="btn btn-outline" onclick="goToPage(2)">← Back to Pipeline</button>
+        <button class="btn btn-outline" onclick="startOver()">Start Over</button>
+      </div>
+    </div>
+
+    <div class="stats-bar" id="statsBar3"></div>
+    <div class="compare-row" id="compareRow"></div>
+
+    <div class="applied-section">
+      <div class="applied-title">Rules Applied</div>
+      <div class="chips-row" id="chipsRow"></div>
+    </div>
+
+    <div class="chart-section">
+      <div class="applied-title">Token Savings by Rule</div>
+      <div class="card chart-card">
+        <canvas id="chartCanvas"></canvas>
+        <div class="chart-empty" id="chartEmpty">No data yet.</div>
+      </div>
+    </div>
+
+    <div class="page-bottom-btns">
+      <button class="btn btn-outline" onclick="optimizeAgain()">🔄 Optimize Again</button>
+      <button class="btn btn-primary" onclick="newPrompt()">✨ New Prompt</button>
+      <button class="btn btn-primary" onclick="runQualityCheck()">Run Quality Check →</button>
+    </div>
+
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════
+     PAGE 4: QUALITY CHECK
+═══════════════════════════════════════════════════════════ -->
+<div id="page-4" class="page page-single" style="display:none;">
+  <div class="single-inner">
+
+    <div class="page-head-row">
+      <div>
+        <h1 class="page-title">Quality Check</h1>
+        <p class="page-subtitle">Compare response quality between original and optimized prompts</p>
+      </div>
+      <div class="page-head-btns">
+        <button class="btn btn-outline" onclick="goToPage(3)">← Back to Token Analysis</button>
+      </div>
+    </div>
+
+    <!-- Status / loading / error -->
+    <div id="qc-status"></div>
+
+    <!-- Prompt display: Original + Optimized side by side -->
+    <div class="qc-prompt-row" id="qc-prompt-row" style="display:none;">
+      <div class="qc-prompt-card qc-prompt-orig">
+        <span class="qc-prompt-pill qc-pill-orig">Original Prompt</span>
+        <div class="qc-prompt-text" id="qc-orig-prompt"></div>
+      </div>
+      <div class="qc-prompt-card qc-prompt-opt">
+        <span class="qc-prompt-pill qc-pill-opt">Optimized Prompt</span>
+        <div class="qc-prompt-text" id="qc-opt-prompt"></div>
+      </div>
+    </div>
+
+    <!-- Two-column answer cards -->
+    <div class="qc-compare-row" id="qc-compare-row" style="display:none;">
+      <div class="qc-answer-col">
+        <div class="qc-col-head">
+          <span class="qc-col-title">Original Prompt Answer</span>
+          <span class="score-badge" id="qc-orig-badge">—</span>
+        </div>
+        <div class="qc-answer-body" id="qc-orig-answer"></div>
+        <div class="qc-dimensions" id="qc-orig-dims"></div>
+      </div>
+      <div class="qc-answer-col">
+        <div class="qc-col-head">
+          <span class="qc-col-title">Optimized Prompt Answer</span>
+          <span class="score-badge" id="qc-opt-badge">—</span>
+        </div>
+        <div class="qc-answer-body" id="qc-opt-answer"></div>
+        <div class="qc-dimensions" id="qc-opt-dims"></div>
+      </div>
+    </div>
+
+    <!-- AI Analysis card -->
+    <div class="qc-ai-analysis" id="qc-ai-analysis" style="display:none;">
+      <div class="qc-ai-label">AI Analysis</div>
+      <div class="qc-ai-text" id="qc-natural-summary"></div>
+    </div>
+
+    <!-- Summary card -->
+    <div class="qc-summary-card" id="qc-summary-card" style="display:none;">
+      <div class="qc-summary-label">Token Efficiency Gain</div>
+      <div class="qc-summary-hint">每个 token 产出的回答质量变化幅度，正数表示优化有效</div>
+      <div class="qc-summary-score" id="qc-summary-score"></div>
+      <div class="qc-verdict" id="qc-verdict"></div>
+      <div class="qc-token-saving" id="qc-token-saving"></div>
+    </div>
+
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
