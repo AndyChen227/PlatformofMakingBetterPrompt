@@ -10,7 +10,7 @@ import java.util.Map;
  * {
  *   "prompt": "Hello, can you please write a function...",
  *   "rules": {
- *     "inputCleaner":       { "enabled": true,  "params": { "aggressiveness": 50 } },
+ *     "fillerRemoval":      { "enabled": true,  "params": { "aggressiveness": 50 } },
  *     "taskAnalyzer":       { "enabled": true,  "params": {} },
  *     "semanticCompressor": { "enabled": true,  "params": { "compressionLevel": 60 } },
  *     ...

@@ -60,26 +60,27 @@ public class TemplatePromptGenerator {
         // ══════════════════════════════════════════════════════════════
         put("CODING_HIGH",
             "Hello there! I hope you're doing absolutely wonderfully today! I was wondering if you " +
-            "could possibly help me out with something. I need you to write a function in Python that " +
-            "sorts a list of numbers. Could you please make sure it's easy to understand and " +
-            "well-commented? I would really appreciate it if you could do that for me. " +
-            "Thanks so much in advance, and please let me know if you need any more information from me!",
+            "could possibly help me out with something. I basically need you to write a function in " +
+            "Python that sorts a list of numbers. Could you please make sure it's easy to understand " +
+            "and well-commented? I would really appreciate it if you could do that for me. " +
+            "Thanks so much in advance, and please let me know if you need any more information from me! " +
+            "Looking forward to your reply!",
 
             "Hi there! I hope you're having a fantastic day! I just wanted to reach out and ask if " +
             "you could potentially help me with a small coding task. I was thinking it would be really " +
             "wonderful if you could write a JavaScript function — and I know this might be a lot to ask " +
-            "— that checks whether a given string is a palindrome. Could you please make sure it's easy " +
-            "to read and has comments explaining each step? I would be so grateful if you could do this " +
-            "for me, and please don't hesitate to let me know if you need any additional context. " +
-            "Thanks a million, I truly appreciate your help!",
+            "— that essentially checks whether a given string is a palindrome. Could you please make " +
+            "sure it's easy to read and has comments explaining each step? I would be so grateful if " +
+            "you could do this for me, and please don't hesitate to let me know if you need any " +
+            "additional context. Thanks a million, I truly appreciate your help! Kind regards!",
 
             "Good day! I sincerely hope you are doing absolutely wonderfully on this fine day. I am " +
             "writing to humbly request your assistance with a coding matter I have been contemplating. " +
             "If it is not too much trouble, I would be eternally grateful if you could possibly help me " +
-            "write a Python class that implements a basic linked list with insert and delete operations. " +
-            "I understand you are very busy and I am very sorry to trouble you, but I truly believe " +
-            "you are the best person to help me with this. Please feel free to ask if anything is " +
-            "unclear. Thank you ever so much in advance for your time and consideration, and please " +
+            "write a Python class that actually implements a basic linked list with insert and delete " +
+            "operations. I understand you are very busy and I am very sorry to trouble you, but I truly " +
+            "believe you are the best person to help me with this. Please feel free to ask if anything " +
+            "is unclear. Thank you ever so much in advance for your time and consideration, and please " +
             "let me know if you have any questions!"
         );
 
@@ -115,25 +116,27 @@ public class TemplatePromptGenerator {
             "Hello! I hope you're having a great day! I have been trying to understand something for " +
             "quite a while now, and I was hoping you might be able to help me out. Could you possibly " +
             "explain how neural networks work? I know it's a big topic and I really don't want to take " +
-            "up too much of your time, but I would be so grateful if you could break it down in a way " +
-            "that's easy to understand. Feel free to use any examples you think might help! I really " +
-            "appreciate your time and effort, and I hope this isn't too much to ask. Thank you so much!",
+            "up too much of your time, but I would be so grateful if you could basically break it down " +
+            "in a way that's easy to understand. Feel free to use any examples you think might help! " +
+            "I really appreciate your time and effort, and I hope this isn't too much to ask. " +
+            "Thank you so much! Hope that makes sense as a request!",
 
             "Hi there! I sincerely hope you are doing extremely well today. I have been spending some " +
             "time trying to wrap my head around recursion in programming, and I must admit I'm finding " +
             "it quite difficult. I was wondering if you could possibly be so kind as to explain it to " +
             "me? If you could provide an example or two, that would be absolutely wonderful. I would " +
             "really appreciate your patience and help with this, and please do let me know if you have " +
-            "any questions about what I'm asking. Thank you so much in advance for your time!",
+            "any questions about what I'm asking. Thank you so much in advance for your time! " +
+            "Best regards!",
 
             "Good day to you! I truly hope everything is going wonderfully for you today and always. " +
             "I wanted to reach out and ask if you might possibly have a moment to help me understand " +
             "something I've been struggling with for a while. I've been trying to learn about " +
-            "polymorphism in object-oriented programming and I keep getting confused. Could you please, " +
-            "if it's not too much trouble, explain what it is and how it works? I would be so thrilled " +
-            "if you could include some real-world examples to make it clearer. I am very thankful for " +
-            "any help you can give, and please don't hesitate to let me know if you need more context. " +
-            "Thanks a million!"
+            "polymorphism in object-oriented programming and I actually keep getting confused no matter " +
+            "how many articles I read. Could you please, if it's not too much trouble, explain what it " +
+            "is and how it works? I would be so thrilled if you could include some real-world examples " +
+            "to make it clearer. I am very thankful for any help you can give, and please don't " +
+            "hesitate to let me know if you need more context. Thanks a million!"
         );
 
         // ══════════════════════════════════════════════════════════════
@@ -174,10 +177,11 @@ public class TemplatePromptGenerator {
             "Hello! I hope you're having a wonderful day! I have been struggling with a really " +
             "frustrating bug in my code for what feels like forever, and I am honestly at my wit's " +
             "end. I was hoping you might be able to help me figure out what's going wrong. My Python " +
-            "script keeps throwing a KeyError exception and I have absolutely no idea why, even though " +
+            "script keeps throwing a KeyError exception and I basically have no idea why, even though " +
             "I've read the documentation multiple times. Could you please, if you have the time, help " +
             "me understand what might be causing this? I would be incredibly grateful for any insight. " +
-            "Please let me know if you need to see more of my code. Thanks so much in advance!",
+            "Please let me know if you need to see more of my code. Thanks so much in advance! " +
+            "Looking forward to your response!",
 
             "Hi there! I sincerely hope you're doing absolutely great today! I am reaching out because " +
             "I have been dealing with this incredibly puzzling bug for several days now and I just " +
@@ -185,16 +189,16 @@ public class TemplatePromptGenerator {
             "update the DOM but nothing seems to change on the page. I know you must be very busy and " +
             "I completely understand if this is a lot to ask, but I would be so deeply grateful if " +
             "you could take a look. I've tried literally everything I can think of! Please feel free " +
-            "to ask me anything you need. Thank you so very much for your time and help!",
+            "to ask me anything you need. Thank you so very much for your time and help! Kind regards!",
 
             "Good day! I truly hope things are going wonderfully for you today and always. I am " +
             "writing with a request I hope you will not find too burdensome. I have been encountering " +
             "a most perplexing StackOverflowError in my Java application, and despite my best efforts " +
-            "and extensive research I have been unable to resolve it. I understand this may be complex " +
-            "and I am very sorry to trouble you with it, but I would be forever grateful if you could " +
-            "help me identify the root cause. Any guidance you can offer would be immensely valuable. " +
-            "Please do not hesitate to ask for any additional information. Thank you from the bottom " +
-            "of my heart for your time and patience!"
+            "and extensive research I have been essentially unable to resolve it on my own. I understand " +
+            "this may be complex and I am very sorry to trouble you with it, but I would be forever " +
+            "grateful if you could help me identify the root cause. Any guidance you can offer would " +
+            "be immensely valuable. Please do not hesitate to ask for any additional information. " +
+            "Thank you from the bottom of my heart for your time and patience!"
         );
 
         // ══════════════════════════════════════════════════════════════
@@ -230,28 +234,31 @@ public class TemplatePromptGenerator {
             "Hello there! I hope you are having the most wonderful day! I have been putting off " +
             "writing something important for quite a while now and I thought maybe you could help me. " +
             "I need to write a cover letter for a software engineering internship, and writing has " +
-            "never really been my strongest suit, to be completely honest. Could you please help me " +
-            "craft a letter that's professional, engaging, and highlights my technical skills well? " +
-            "I know this is a lot to ask and I am very sorry to trouble you with it. I would be so " +
-            "incredibly grateful for your help and expertise. Please let me know if you need any " +
-            "information about my background! Thank you so, so much in advance!",
+            "basically never been my strongest suit, to be completely honest — I just freeze up " +
+            "whenever I have to write anything formal. Could you please help me craft a letter that's " +
+            "professional, engaging, and highlights my technical skills well? I know this is a lot to " +
+            "ask and I am very sorry to trouble you with it. I would be so incredibly grateful for " +
+            "your help and expertise. Please let me know if you need any information about my " +
+            "background! Thank you so, so much in advance!",
 
             "Hi! I hope everything is going amazing for you today! I've been trying to write a " +
-            "technical blog post about Docker for beginners for quite some time now, but I keep " +
-            "struggling to find the right words and structure. I was wondering if you could possibly " +
-            "help me write an engaging introduction that's accessible for people who've never used " +
-            "Docker? I know you're probably very busy and I genuinely appreciate you taking the time " +
-            "to read this long message. I would be so, so thankful if you could help me out! Please " +
-            "don't hesitate to let me know if you need more details. Thanks a million!",
+            "technical blog post about Docker for beginners for quite some time now, but I actually " +
+            "keep struggling to find the right words and structure no matter how many drafts I write. " +
+            "I was wondering if you could possibly help me write an engaging introduction that's " +
+            "accessible for people who've never used Docker? I know you're probably very busy and I " +
+            "genuinely appreciate you taking the time to read this long message. I would be so, so " +
+            "thankful if you could help me out! Please don't hesitate to let me know if you need more " +
+            "details. Thanks a million! Hope that makes sense!",
 
             "Good day! I sincerely hope this message finds you in the best of spirits today! I am " +
             "reaching out with a humble request for your invaluable assistance. I have been tasked " +
             "with writing a project proposal document for a new mobile application, and I am honestly " +
             "feeling quite overwhelmed by the scope of it. I was wondering if you could possibly help " +
-            "me write an executive summary that clearly and compellingly articulates the project's " +
-            "value proposition. I know this is asking a great deal, and I am truly so grateful for " +
-            "any help you can provide. Please do not hesitate to ask if you have any questions at all. " +
-            "Thank you ever so much, I really do deeply appreciate your time and effort!"
+            "me write an executive summary that essentially captures the project's value proposition " +
+            "in a clear and compelling way. I know this is asking a great deal, and I am truly so " +
+            "grateful for any help you can provide. Please do not hesitate to ask if you have any " +
+            "questions at all. Thank you ever so much, I really do deeply appreciate your time and " +
+            "effort! Best regards!"
         );
 
         // ══════════════════════════════════════════════════════════════
@@ -287,11 +294,11 @@ public class TemplatePromptGenerator {
             "Hello! I really hope you're having a fantastic day today! I have been going back and " +
             "forth for a very long time trying to make a decision about something technical, and I " +
             "thought maybe you could help me out. I need to compare AWS and Google Cloud Platform for " +
-            "hosting a web application, and I honestly have no idea which one to choose. Could you " +
+            "hosting a web application, and I basically have no idea which one to choose. Could you " +
             "please, if you have the time, give me a detailed comparison of the two? I would love to " +
             "understand the pros and cons of each in detail. I know this might be a lot to ask, and " +
             "I truly appreciate you taking the time to read my message. Thank you so much in advance, " +
-            "and please let me know if you need any more information!",
+            "and please let me know if you need any more information! Looking forward to your reply!",
 
             "Hi there! I hope you are doing absolutely wonderfully today! I've been spending a lot of " +
             "time reading about TypeScript and JavaScript but I keep getting more confused the more I " +
@@ -299,17 +306,19 @@ public class TemplatePromptGenerator {
             "large-scale enterprise application. If you could compare them in terms of type safety, " +
             "developer experience, and long-term maintainability, I would be so unbelievably grateful. " +
             "I know this is a big ask and I don't want to take up too much of your valuable time. " +
-            "Please do let me know if you need any additional context at all. Thanks a million!",
+            "Please do let me know if you need any additional context at all. Thanks a million! " +
+            "Kind regards!",
 
             "Good day! I genuinely hope you are having a most wonderful and productive day! I am " +
             "writing with a somewhat involved question that I hope you will have the patience to " +
             "help me with. I have been tasked with evaluating two state management solutions — " +
-            "Redux and Zustand — for our React application, and I find myself quite unable to " +
-            "determine which would be the better fit. Could you please, at your earliest convenience " +
+            "Redux and Zustand — for our React application, and I actually find myself quite unable " +
+            "to determine which would be the better fit. Could you please, at your earliest convenience " +
             "and if it is not too much trouble, provide a thorough comparison addressing performance, " +
             "ease of use, and community support? I am so very thankful for your time and any " +
             "assistance you can provide. Please don't hesitate to reach out if you need more context. " +
-            "Thank you so very much, I truly appreciate it from the bottom of my heart!"
+            "Thank you so very much, I truly appreciate it from the bottom of my heart! " +
+            "Hope that clarifies what I'm looking for!"
         );
     }
 

@@ -18,6 +18,11 @@ import java.util.List;
  *   3. Collapses multiple consecutive spaces into a single space
  *   4. Strips leading/trailing whitespace from the whole text
  *
+ * Scope boundary:
+ *   This rule handles WHITESPACE characters only (spaces, tabs, newlines).
+ *   It does NOT handle:
+ *     - Repeated punctuation marks (!!! / ??? / ....)  → PunctuationNormalizer
+ *
  * Future real algorithm should:
  *   - Detect and remove redundant structural markers:
  *       excessive markdown headers, duplicate section dividers (----)

@@ -154,31 +154,31 @@
           <span class="level-count">6 rules</span>
         </div>
 
-        <!-- InputCleaner -->
-        <div class="rule-card level1" id="rcard-inputCleaner">
+        <!-- FillerRemoval -->
+        <div class="rule-card level1" id="rcard-fillerRemoval">
           <div class="rule-left-bar bar-blue"></div>
           <div class="rule-body">
             <div class="rule-row1">
               <div class="rule-row1-left">
                 <label class="toggle">
-                  <input type="checkbox" class="rule-toggle" data-rule="inputCleaner" checked />
+                  <input type="checkbox" class="rule-toggle" data-rule="fillerRemoval" checked />
                   <span class="toggle-track"></span>
                 </label>
-                <span class="rule-name">Input Cleaner</span>
+                <span class="rule-name">Filler Removal</span>
               </div>
-              <button class="info-btn" onclick="showModal('inputCleaner')" title="Learn more">ℹ</button>
+              <button class="info-btn" onclick="showModal('fillerRemoval')" title="Learn more">ℹ</button>
             </div>
-            <div class="rule-desc">Removes greetings &amp; filler openers</div>
-            <div class="rule-params" id="params-inputCleaner">
-              <div class="tier-group" data-rule="inputCleaner" data-param="aggressiveness">
+            <div class="rule-desc">Removes greetings, openers, mid-text fillers &amp; closing remarks</div>
+            <div class="rule-params" id="params-fillerRemoval">
+              <div class="tier-group" data-rule="fillerRemoval" data-param="aggressiveness">
                 <button class="tier-btn" data-value="20">LOW</button>
                 <button class="tier-btn active" data-value="50">MID</button>
                 <button class="tier-btn" data-value="85">HIGH</button>
               </div>
               <div class="tier-hints">
-                <span>Only greetings</span>
-                <span>+ polite openers</span>
-                <span>+ all fillers</span>
+                <span>Greetings + 3 closings</span>
+                <span>+ polite openers + 5 closings</span>
+                <span>+ all openers + fillers + 4 closings</span>
               </div>
             </div>
           </div>
@@ -291,7 +291,7 @@
       <div class="level-block" style="margin-top:16px;">
         <div class="level-block-header">
           <span class="badge badge-red-lg">Level 2 · Output Control</span>
-          <span class="level-count">3 rules</span>
+          <span class="level-count">2 rules</span>
         </div>
 
         <!-- LengthControl -->
@@ -336,23 +336,6 @@
           </div>
         </div>
 
-        <!-- RedundancySuppressor -->
-        <div class="rule-card level2" id="rcard-redundancySuppressor">
-          <div class="rule-left-bar bar-red"></div>
-          <div class="rule-body">
-            <div class="rule-row1">
-              <div class="rule-row1-left">
-                <label class="toggle">
-                  <input type="checkbox" class="rule-toggle" data-rule="redundancySuppressor" checked />
-                  <span class="toggle-track"></span>
-                </label>
-                <span class="rule-name">Redundancy Suppressor</span>
-              </div>
-              <button class="info-btn" onclick="showModal('redundancySuppressor')" title="Learn more">ℹ</button>
-            </div>
-            <div class="rule-desc">Removes closing filler sentences</div>
-          </div>
-        </div>
 
       </div><!-- /level2 block -->
     </div><!-- /p1-right-inner -->

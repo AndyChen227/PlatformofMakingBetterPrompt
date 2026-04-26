@@ -56,6 +56,15 @@ import java.util.regex.Pattern;
  *   Tiers are cumulative (MEDIUM includes LOW, HIGH includes MEDIUM).
  *   Changes list shows the active tier and each substitution performed.
  *
+ * Scope boundary:
+ *   This rule handles VERBOSE-PHRASE → CONCISE-PHRASE substitution where both
+ *   sides are semantically equivalent natural language. It does NOT handle:
+ *     - Social fillers that can be deleted outright (greetings, polite
+ *       openers, closing remarks)                      → FillerRemoval
+ *     - Output-format instruction symbols              → FormatControl
+ *   Decision rule: input and output must be fully semantically equivalent and
+ *   only shorter — if the phrase can simply be deleted, it belongs to FillerRemoval.
+ *
  * Future upgrades:
  *   - Use an LLM or sentence-transformers to detect arbitrary paraphrase
  *     pairs that carry identical meaning (not limited to a fixed list)

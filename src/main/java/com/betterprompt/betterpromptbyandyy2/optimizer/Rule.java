@@ -19,7 +19,7 @@ import com.betterprompt.betterpromptbyandyy2.model.StepResult;
  */
 public interface Rule {
 
-    /** Unique camelCase ID used as the key in the request JSON (e.g. "inputCleaner"). */
+    /** Unique camelCase ID used as the key in the request JSON (e.g. "fillerRemoval"). */
     String getRuleId();
 
     /** Human-readable display name (e.g. "Input Cleaner"). */

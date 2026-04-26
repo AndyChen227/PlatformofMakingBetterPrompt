@@ -1,7 +1,7 @@
 package com.betterprompt.betterpromptbyandyy2.config;
 
 import com.betterprompt.betterpromptbyandyy2.optimizer.Rule;
-import com.betterprompt.betterpromptbyandyy2.optimizer.level1.InputCleanerRule;
+import com.betterprompt.betterpromptbyandyy2.optimizer.level1.FillerRemovalRule;
 import com.betterprompt.betterpromptbyandyy2.optimizer.level1.SemanticCompressorRule;
 import com.betterprompt.betterpromptbyandyy2.optimizer.level1.NumberNormalizerRule;
 import com.betterprompt.betterpromptbyandyy2.optimizer.level1.PunctuationNormalizerRule;
@@ -9,7 +9,7 @@ import com.betterprompt.betterpromptbyandyy2.optimizer.level1.StructureMinimizer
 import com.betterprompt.betterpromptbyandyy2.optimizer.level1.TaskAnalyzerRule;
 import com.betterprompt.betterpromptbyandyy2.optimizer.level2.FormatControlRule;
 import com.betterprompt.betterpromptbyandyy2.optimizer.level2.LengthControlRule;
-import com.betterprompt.betterpromptbyandyy2.optimizer.level2.RedundancySuppressorRule;
+
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -43,7 +43,7 @@ public class RuleRegistryConfig {
     public List<Rule> rules() {
         return List.of(
             // ── Level 1: Input Processing ──────────────────────────────
-            new InputCleanerRule(),       // Strip greetings & filler openers
+            new FillerRemovalRule(),      // Strip greetings, polite openers, mid-text fillers, and closing remarks
             new TaskAnalyzerRule(),       // Classify task type & complexity
             new SemanticCompressorRule(), // Replace verbose phrases
             new StructureMinimizerRule(),       // Collapse whitespace & blank lines
@@ -52,8 +52,7 @@ public class RuleRegistryConfig {
 
             // ── Level 2: Output Control ────────────────────────────────
             new LengthControlRule(),      // Hard-truncate if over maxWords budget
-            new FormatControlRule(),      // Compact formatting instructions
-            new RedundancySuppressorRule()// Remove closing filler sentences
+            new FormatControlRule()       // Compact formatting instructions
 
             // ── Future: Level 3 (add here without touching other files) ─
             // new ContextCompressorRule(),

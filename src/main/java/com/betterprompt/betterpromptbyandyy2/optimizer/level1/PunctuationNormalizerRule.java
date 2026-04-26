@@ -15,6 +15,11 @@ import java.util.List;
  *   2. 连续问号（2个以上）→ 单个 ?
  *   3. 连续英文句点（4个以上）→ 标准省略号 ...
  *
+ * Scope boundary:
+ *   This rule handles PUNCTUATION characters only (! ? .).
+ *   It does NOT handle:
+ *     - Whitespace, blank lines, or trailing spaces  → StructureMinimizer
+ *
  * 未来升级方向：
  *   1. 支持中文标点规范化（！！！→！）
  *   2. 处理混合标点（!? 或 ?!）→ 统一为 ?

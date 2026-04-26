@@ -11,15 +11,14 @@
 const state = {
   prompt: '',
   rules: {
-    inputCleaner:         { enabled: true,  params: { aggressiveness: 50 } },
-    taskAnalyzer:         { enabled: true,  params: {} },
-    semanticCompressor:   { enabled: true,  params: { compressionLevel: 50 } },
+    fillerRemoval:          { enabled: true,  params: { aggressiveness: 50 } },
+    taskAnalyzer:           { enabled: true,  params: {} },
+    semanticCompressor:     { enabled: true,  params: { compressionLevel: 50 } },
     structureMinimizer:     { enabled: true,  params: {} },
     punctuationNormalizer:  { enabled: true,  params: {} },
     numberNormalizer:       { enabled: true,  params: {} },
     lengthControl:          { enabled: true,  params: { maxWords: 50 } },
-    formatControl:        { enabled: true,  params: {} },
-    redundancySuppressor: { enabled: true,  params: {} },
+    formatControl:          { enabled: true,  params: {} },
   },
   result: null,
   currentPage: 1,
@@ -28,7 +27,7 @@ const state = {
 
 // Execution order — must match RuleRegistryConfig.java
 const RULE_ORDER = [
-  'inputCleaner',
+  'fillerRemoval',
   'taskAnalyzer',
   'semanticCompressor',
   'structureMinimizer',
@@ -36,14 +35,13 @@ const RULE_ORDER = [
   'numberNormalizer',
   'lengthControl',
   'formatControl',
-  'redundancySuppressor',
 ];
 
 const RULE_LEVEL = {
-  inputCleaner: 'l1', taskAnalyzer: 'l1',
+  fillerRemoval: 'l1', taskAnalyzer: 'l1',
   semanticCompressor: 'l1', structureMinimizer: 'l1',
   punctuationNormalizer: 'l1', numberNormalizer: 'l1',
-  lengthControl: 'l2', formatControl: 'l2', redundancySuppressor: 'l2',
+  lengthControl: 'l2', formatControl: 'l2',
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -51,23 +49,24 @@ const RULE_LEVEL = {
 // ═══════════════════════════════════════════════════════════════
 
 const RULE_INFO = {
-  inputCleaner: {
-    name: 'Input Cleaner',
+  fillerRemoval: {
+    name: 'Filler Removal',
     level: 'Level 1',
     levelClass: 'badge-blue',
-    what: 'Removes greetings, filler words, and unnecessary openers from the beginning of prompts. These phrases carry no information value for the model and only consume tokens.',
+    what: 'Removes social filler from prompts: greetings at the start, polite openers, mid-text filler words, and closing remarks at the end. None of these affect the model\'s understanding — they only consume tokens. The aggressiveness parameter controls how much is removed across all positions.',
     hasParams: true,
     params: [
-      { tier: 'LOW',  cls: 'badge-green',  text: 'Only removes explicit greetings: hi, hello, hey, good morning/afternoon/evening' },
-      { tier: 'MID',  cls: 'badge-blue',   text: 'LOW + polite request openers: please, could you, can you, would you, I need you to' },
-      { tier: 'HIGH', cls: 'badge-orange', text: 'MID + soft openers (I was wondering if…, I\'d like you to…) + mid-text filler words: basically, essentially, literally, actually' },
+      { tier: 'LOW',  cls: 'badge-green',  text: 'Removes explicit greetings (hi, hello, hey, good morning) and 3 most common closings (I hope this helps, thanks in advance, thank you for your time)' },
+      { tier: 'MID',  cls: 'badge-blue',   text: 'LOW + polite openers (please, could you, can you, would you) + 5 more closings (please let me know, feel free to ask, don\'t hesitate, etc.)' },
+      { tier: 'HIGH', cls: 'badge-orange', text: 'MID + soft openers (I was wondering if…) + mid-text fillers (basically, essentially, literally, actually) + 4 more closings (looking forward to, best regards, etc.)' },
     ],
-    exBefore: 'Hello! I was wondering if you could please help me understand recursion. Thanks in advance!',
+    exBefore: 'Hello! I was wondering if you could basically explain recursion. I hope this helps. Thanks in advance!',
     exAfter:  'Explain recursion.',
     future: [
-      'NLP classifier to detect filler phrases anywhere in text, not just at the start',
+      'NLP classifier to detect filler phrases anywhere, not just predefined patterns',
       'Multilingual support: Chinese (你好/麻烦你), French (Bonjour/Pourriez-vous)',
-      'Context-aware mode: preserve openers in customer-service or formal-writing prompts',
+      'Context-aware mode: preserve filler in customer-service or formal-writing prompts',
+      'Semantic similarity to catch paraphrases of closing remarks not in the fixed list',
     ],
   },
   taskAnalyzer: {
@@ -174,20 +173,6 @@ const RULE_INFO = {
       'Detect implicit format intent ("give me a list" → infer bullet points)',
       'Normalize mixed list styles within a single prompt',
       'Support more format patterns: tables, headers, code blocks',
-    ],
-  },
-  redundancySuppressor: {
-    name: 'Redundancy Suppressor',
-    level: 'Level 2',
-    levelClass: 'badge-red',
-    what: 'Removes closing filler phrases at the end of prompts. These phrases — such as "I hope this helps" or "please let me know if you have questions" — add no information value and are ignored by the model anyway.',
-    hasParams: false,
-    exBefore: 'Explain recursion. I hope this helps! Please let me know if you have any questions. Thanks in advance!',
-    exAfter:  'Explain recursion.',
-    future: [
-      'Semantic similarity detection for paraphrase fillers not in the fixed list',
-      'Detect over-specified constraints that repeat earlier instructions',
-      'Handle multi-sentence closing blocks spanning several lines',
     ],
   },
 };
@@ -547,8 +532,8 @@ function buildStepDetailHTML(step, ruleId) {
 }
 
 function buildParamSummaryText(ruleId) {
-  if (ruleId === 'inputCleaner') {
-    const v = state.rules.inputCleaner.params.aggressiveness;
+  if (ruleId === 'fillerRemoval') {
+    const v = state.rules.fillerRemoval.params.aggressiveness;
     return `Aggressiveness: ${v <= 30 ? 'LOW' : v <= 70 ? 'MID' : 'HIGH'}`;
   }
   if (ruleId === 'semanticCompressor') {
@@ -562,11 +547,11 @@ function buildParamSummaryText(ruleId) {
 }
 
 function buildParamDescription(ruleId) {
-  if (ruleId === 'inputCleaner') {
-    const v = state.rules.inputCleaner.params.aggressiveness;
-    if (v <= 30) return 'LOW — removes explicit greetings only (hello, hi, hey, good morning/afternoon/evening)';
-    if (v <= 70) return 'MID — greetings + polite openers (please, could you, can you, would you, I need you to)';
-    return 'HIGH — all openers + mid-text filler words (basically, essentially, literally, actually)';
+  if (ruleId === 'fillerRemoval') {
+    const v = state.rules.fillerRemoval.params.aggressiveness;
+    if (v <= 30) return 'LOW — explicit greetings (hello, hi, hey) + 3 most common closings (I hope this helps, thanks in advance, thank you for your time)';
+    if (v <= 70) return 'MID — LOW + polite openers (please, could you) + 5 more closings (please let me know, feel free to ask, etc.)';
+    return 'HIGH — MID + soft openers (I was wondering if…) + mid-text fillers (basically, essentially) + 4 more closings (looking forward to, best regards, etc.)';
   }
   if (ruleId === 'semanticCompressor') {
     const v = state.rules.semanticCompressor.params.compressionLevel;
