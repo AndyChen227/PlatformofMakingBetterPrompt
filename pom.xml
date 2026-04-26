@@ -31,6 +31,15 @@
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
+
+        <!-- jtokkit: Java implementation of OpenAI's tiktoken BPE tokenizer.
+             Used by TokenCounter for accurate token counting against gpt-4o-mini.
+             Pure Java, no native deps. -->
+        <dependency>
+            <groupId>com.knuddels</groupId>
+            <artifactId>jtokkit</artifactId>
+            <version>1.1.0</version>
+        </dependency>
     </dependencies>
 
     <build>
