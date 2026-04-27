@@ -672,7 +672,8 @@ Open `http://localhost:8080` in your browser.
 - [x] v1.0 — Spring Boot project scaffold, REST API skeleton, Level 1 & 2 rules, Prompt Generator, three-page SPA (tag: v1.0.4)
 - [x] v2.0 — Quality Check feature (OpenAI-powered side-by-side comparison)
 - [x] v2.1 — AI Generate (OpenAI-powered prompt generation)
-- [x] v3.0 — Punctuation Normalizer + Number Normalizer; merged InputCleaner + RedundancySuppressor → FillerRemovalRule (tag: v3.0)
+- [x] v3.0 — Punctuation Normalizer + Number Normalizer (tag: v3.0)
+- [x] v3.0.1 — Merged FillerRemovalRule (Input Cleaner + Redundancy Suppressor)
 - [x] v3.1 — Real BPE tokenizer via jtokkit (o200k_base, aligned with gpt-4o-mini); MOCK label cleanup; version-numbering alignment
 - [ ] v4.0 — Level 3: context optimization (deduplication, reference compression)
 - [ ] v5.0 — Level 4 & 5: system-level optimization (system prompt factoring, conversation compression)

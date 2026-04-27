@@ -115,7 +115,24 @@
 
 ---
 
-### ✅ v3.0（与 v3.0 同 commit） — 规则合并：FillerRemovalRule（2026/4/20）
+### ✅ v3.0 — Punctuation Normalizer + Number Normalizer（2026/4/15）
+
+产出：
+- `PunctuationNormalizerRule`：三步正则实现
+  - `!{2,}` → `!` 压缩重复感叹号
+  - `\?{2,}` → `?` 压缩重复问号
+  - `\.{4,}` → `...` 规范省略号
+- `NumberNormalizerRule`：完整位权解析器
+  - 支持 ones / tens / hundred / thousand / million 任意组合
+  - 两阶段处理：百分比优先（`fifty percent` → `50%`），再处理普通数字（`two hundred and fifty three` → `253`）
+- 两条新 Rule 注册在 `RuleRegistryConfig.java`，位置：StructureMinimizerRule 之后、LengthControlRule 之前（执行顺序 5、6）
+- 同步更新：PRODUCT.md / FEATURES.md（新增 2.5、2.6 章节）/ README.md / DEVLOG.md
+
+状态：两条新 Rule 全链路上线
+
+---
+
+### ✅ v3.0.1 — 规则合并：FillerRemovalRule（2026/4/20）
 
 产出：
 - 新建 FillerRemovalRule（Level 1），合并原 InputCleanerRule（Level 1）和
@@ -160,23 +177,6 @@
 
 ---
 
-### ✅ v3.0 — Punctuation Normalizer + Number Normalizer（2026/4/15）
-
-产出：
-- `PunctuationNormalizerRule`：三步正则实现
-  - `!{2,}` → `!` 压缩重复感叹号
-  - `\?{2,}` → `?` 压缩重复问号
-  - `\.{4,}` → `...` 规范省略号
-- `NumberNormalizerRule`：完整位权解析器
-  - 支持 ones / tens / hundred / thousand / million 任意组合
-  - 两阶段处理：百分比优先（`fifty percent` → `50%`），再处理普通数字（`two hundred and fifty three` → `253`）
-- 两条新 Rule 注册在 `RuleRegistryConfig.java`，位置：StructureMinimizerRule 之后、LengthControlRule 之前（执行顺序 5、6）
-- 同步更新：PRODUCT.md / FEATURES.md（新增 2.5、2.6 章节）/ README.md / DEVLOG.md
-
-状态：两条新 Rule 全链路上线
-
----
-
 ## 待完成功能
 
 | 功能 | 优先级 | 说明 |
@@ -204,7 +204,7 @@
 | 2026/4/20 | 合并 InputCleaner 和 RedundancySuppressor 为 FillerRemoval | 两者本质都是删除社交性填充语，区别仅在位置（开头/结尾），不是强划分维度。合并后用 aggressiveness 参数统一控制，减少职责重合，未来加中间位置的 filler 也无需新规则 |
 | 2026/4/25 | 在 FEATURES.md 中以 Scope boundary 段落明确 FillerRemoval / SemanticCompressor / FormatControl 三者的职责边界 | 防止未来新增词条时归属不清。统一判定原则:能直接删除的归 Filler,只能压缩的归 Compressor,改变输出形式的归 FormatControl |
 | 2026/4/25 | TokenCounter 选 jtokkit 而非自实现 BPE | jtokkit 是 OpenAI tiktoken 官方词表的 Java 移植，o200k_base 与项目实际调用的 gpt-4o-mini 完全对齐；纯 Java 无 native 依赖，零集成成本；自实现 BPE 需复刻整个词表与合并规则，无价值 |
-| 2026/4/25 | 文档版本号体系统一至 v3.x | 开发过程中用 v1.0–v1.8 做内部迭代标记，git tag 实际只打了 v1.0.4 和 v3.0；内部版本号与 tag 不对齐会造成混淆。统一规则：v1.0–v1.3 → v1.0（tag v1.0.4），v1.4 → v2.0，v1.5 → v2.1，v1.6/v1.7 → v3.0，v1.8 → v3.1 |
+| 2026/4/25 | 文档版本号体系统一至 v3.x | 开发过程中用 v1.0–v1.8 做内部迭代标记，git tag 实际只打了 v1.0.4 和 v3.0；内部版本号与 tag 不对齐会造成混淆。统一规则：v1.0–v1.3 → v1.0（tag v1.0.4），v1.4 → v2.0，v1.5 → v2.1，v1.6 → v3.0（tag v3.0），v1.7 → v3.0.1，v1.8 → v3.1 |
 
 ---
 
