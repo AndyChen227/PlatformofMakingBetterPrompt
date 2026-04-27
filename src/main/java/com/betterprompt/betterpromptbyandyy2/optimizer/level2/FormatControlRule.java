@@ -12,7 +12,7 @@ import java.util.Map;
 
 /**
  * ============================================================
- *  MOCK Implementation — Format Control Rule
+ *  Format Control Rule — Real Implementation
  * ============================================================
  * Current behaviour:
  *   Performs simple string replacements to convert verbose formatting
@@ -21,6 +21,15 @@ import java.util.Map;
  *     "- bullet point:"  → "•"
  *     "numbered list:"   → "1."
  *     "bold text:"       → "**"
+ *
+ * Scope boundary:
+ *   This rule handles OUTPUT-FORMAT INSTRUCTION → SYMBOL substitution
+ *   (e.g. "bullet points:" → "•", "numbered list:" → "1."). It does NOT handle:
+ *     - General verbose-phrase compression             → SemanticCompressor
+ *     - Social filler (greetings, polite openers)      → FillerRemoval
+ *   Decision rule: the goal must be changing output form (list / bold /
+ *   code block etc.) rather than semantic content — if it changes meaning,
+ *   it doesn't belong here.
  *
  * Future real algorithm should:
  *   - Detect implicit formatting intent ("list the following items")
@@ -62,13 +71,13 @@ public class FormatControlRule implements Rule {
             String compact    = entry.getValue();
             String replaced   = result.replaceAll("(?i)" + java.util.regex.Pattern.quote(verbose), compact);
             if (!replaced.equals(result)) {
-                changes.add("[MOCK] \"" + verbose + "\" → \"" + compact + "\"");
+                changes.add("[formatControl] \"" + verbose + "\" → \"" + compact + "\"");
                 result = replaced;
             }
         }
 
         if (changes.isEmpty()) {
-            changes.add("[MOCK] No verbose formatting instructions found");
+            changes.add("[formatControl] No verbose formatting instructions found");
         }
 
         int tokensAfter = TokenCounter.count(result);

@@ -1,4 +1,4 @@
-# BetterPrompt 功能清单 v2.1
+# BetterPrompt 功能清单 v3.1
 
 > 本文档根据实际代码生成，记录项目每个功能的实现状态、细节和验证方式。
 > 更新规则：每完成或修改一个功能，同步更新对应条目。
@@ -11,12 +11,12 @@
 |------|--------|-----------|--------------|----------|
 | 后端核心框架 | 4 | 3 | 1 | 0 |
 | Level 1 优化规则 | 6 | 4 | 2 | 0 |
-| Level 2 优化规则 | 3 | 0 | 3 | 0 |
+| Level 2 优化规则 | 2 | 0 | 2 | 0 |
 | Prompt Generator | 2 | 2 | 0 | 0 |
 | REST API | 4 | 4 | 0 | 0 |
 | 前端 UI | 5 | 5 | 0 | 0 |
 | 质量对比（Quality Check） | 6 | 6 | 0 | 0 |
-| **合计** | **30** | **24** | **6** | **0** |
+| **合计** | **29** | **23** | **6** | **0** |
 
 ---
 
@@ -28,7 +28,7 @@
 **接口方法列表**（`Rule.java`）：
 | 方法 | 返回类型 | 说明 |
 |------|----------|------|
-| `getRuleId()` | `String` | 唯一 camelCase ID，与请求 JSON 中的键对应（如 `"inputCleaner"`） |
+| `getRuleId()` | `String` | 唯一 camelCase ID，与请求 JSON 中的键对应（如 `"fillerRemoval"`） |
 | `getRuleName()` | `String` | 人类可读的展示名（如 `"Input Cleaner"`） |
 | `getRuleLevel()` | `String` | 分组标签（如 `"Level 1"` 或 `"Level 2"`） |
 | `getDescription()` | `String` | 前端 UI 展示的简短描述 |
@@ -71,7 +71,7 @@
 
 | 执行顺序 | 类名 | ruleId | 所属 Level |
 |---------|------|--------|-----------|
-| 1 | `InputCleanerRule` | `inputCleaner` | Level 1 |
+| 1 | `FillerRemovalRule` | `fillerRemoval` | Level 1 |
 | 2 | `TaskAnalyzerRule` | `taskAnalyzer` | Level 1 |
 | 3 | `SemanticCompressorRule` | `semanticCompressor` | Level 1 |
 | 4 | `StructureMinimizerRule` | `structureMinimizer` | Level 1 |
@@ -79,7 +79,6 @@
 | 6 | `NumberNormalizerRule` | `numberNormalizer` | Level 1 |
 | 7 | `LengthControlRule` | `lengthControl` | Level 2 |
 | 8 | `FormatControlRule` | `formatControl` | Level 2 |
-| 9 | `RedundancySuppressorRule` | `redundancySuppressor` | Level 2 |
 
 **新增规则的步骤**：
 1. 创建 `YourNewRule.java`，实现 `Rule` 接口（放在 `optimizer/` 下任意子包）
@@ -90,35 +89,62 @@
 
 ---
 
-### 1.4 TokenCounter（Token 计数）
-🔧 已实现但有已知局限
+### 1.4 TokenCounter
 
-**当前算法**（`TokenCounter.java`）：
-- 调用 `text.trim().split("\\s+").length`，即按空白字符分割后计词数
-- text 为 null 或 blank 时返回 0
+**实现状态：✅ 已实现（v3.1 接入真实 BPE）**
 
-**局限性**（代码注释 MOCK 标注）：
-- 不是真实 BPE 分词，与 Claude 实际计数存在偏差
-- 无法正确处理标点、Unicode、代码块中的特殊 token
-- 未缓存 tokenizer 初始化
+**算法说明：**
 
-**未来升级方向**（代码注释）：
-- 使用真实 BPE tokenizer（如 tiktoken 或 Anthropic 官方 tokenizer）
-- 正确处理标点符号、Unicode 和子词单元（subword units）
-- 缓存 tokenizer 初始化以提升性能
+接入 [jtokkit 1.1.0](https://github.com/knuddels/jtokkit)（OpenAI tiktoken
+的 Java 移植版），采用 `o200k_base` 编码器，与项目实际调用的 gpt-4o-mini
+（QualityComparisonController 与 AiPromptGenerator）完全对齐。
+
+实现要点：
+1. 应用启动时通过静态初始化块加载 `Encoding` 单例，BPE 词表只构建一次（约 100-200ms）
+2. `Encoding` 实例线程安全，所有 `count()` 调用零额外开销
+3. `count(String)` 方法签名与 v3.0 完全一致，所有调用方无需修改
+4. 新增 `wordCount(String)` 提供按空白分词的词数语义，供"逻辑判断"场景使用
+5. 新增 `getEncodingName()` 返回当前编码器名，便于调试
+
+**API：**
+- `static int count(String text)` — 真实 BPE token 数
+- `static int wordCount(String text)` — 按空白分词的词数
+- `static String getEncodingName()` — 返回 `"O200K_BASE"`
+
+**Scope boundary**:
+- 本类只负责 token / 词数的"计数"，不修改任何文本内容
+- "BPE token 数" 用于前端显示与 Quality Check 的效率比计算
+- "词数" 用于规则内部的逻辑判断（复杂度阈值、长度 budget）
+- 两种语义并存且不互相污染
+
+**示例：**
+
+| 输入 | `wordCount()` | `count()` (BPE) | 差异原因 |
+|------|---------------|-----------------|---------|
+| `Hello world!` | 2 | 3 | `!` 被单独切为独立 token |
+| `Write a function to sort an array.` | 7 | 8 | `.` 被单独切为独立 token |
+
+**未来升级方向：**
+- 若项目后续切换到 Claude (Anthropic)，将 `ENCODING_TYPE` 改为对应编码即可
+- 增加 batch 接口，一次 encode 多段文本以减少调用开销
+- 支持多模型 token 数对比（同时返回 GPT-4o 和 GPT-3.5 的估算）
 
 ---
 
 ## 二、Level 1 优化规则
 
-### 2.1 InputCleanerRule
+### 2.1 FillerRemovalRule
 ✅ 已完成并测试（代码注释标注为"real algorithm"）
+
+合并自原 InputCleanerRule（开头清理）和 RedundancySuppressorRule（结尾清理），统一由 `aggressiveness` 参数控制。
 
 **参数**：`aggressiveness`（int，0–100，默认 50）
 
-**三档行为差异**（`InputCleanerRule.java`）：
+**三档行为差异**（`FillerRemovalRule.java`）：
 
-**LOW（0–30）** — 仅删除显式寒暄词（4 个正则，均匹配行首，`CASE_INSENSITIVE`）：
+**LOW（0–30）** — 开头 + 3 个最常见结尾套话：
+
+开头（4 个正则，均匹配行首，`CASE_INSENSITIVE`）：
 ```
 ^\s*good\s+(morning|afternoon|evening)[,!.\s]+
 ^\s*hello[,!.\s]+
@@ -126,7 +152,16 @@
 ^\s*hey[,!.\s]+
 ```
 
-**MEDIUM（31–70）** — LOW + 礼貌性请求开头（9 个正则，更具体的在前以防部分匹配，`CASE_INSENSITIVE`）：
+结尾套话（`\b` 前缀，`CASE_INSENSITIVE`）：
+```
+\bI hope this helps[.!]*
+\bthanks in advance[.!]*
+\bthank you for your time[.!]*
+```
+
+**MEDIUM（31–70）** — LOW + 礼貌性请求开头 + 5 个结尾套话：
+
+开头（9 个正则，更具体的在前以防部分匹配，`CASE_INSENSITIVE`）：
 ```
 ^\s*i was hoping you could\s+
 ^\s*i need you to\s+
@@ -139,7 +174,16 @@
 ^\s*please\s+
 ```
 
-**HIGH（71–100）** — MEDIUM + 软性开头（7 个正则）+ 中间 filler 词（4 个词）：
+结尾套话（新增 5 条）：
+```
+\bplease let me know[^.]*[.!]*
+\bfeel free to ask[^.]*[.!]*
+\bdon'?t hesitate to (ask|contact)[^.]*[.!]*
+\blet me know if you have any (questions|concerns|issues)[^.]*[.!]*
+\bif you have any (questions|concerns|issues)[^.]*[.!]*
+```
+
+**HIGH（71–100）** — MEDIUM + 软性开头 + 中间 filler 词 + 4 个结尾套话：
 
 软性开头正则（行首，`CASE_INSENSITIVE`）：
 ```
@@ -160,28 +204,44 @@ literally
 actually
 ```
 
-**执行机制**：
-- 使用 while 循环反复应用 LOW / MEDIUM / HIGH 开头正则，直到一轮扫描无任何匹配为止（处理"Hello! Hi there! Please..."之类叠加寒暄）
-- Filler 词在循环外单独处理（匹配词组需两侧均有空格）
-- 所有清理完成后，自动大写第一个字母
-- Changes 列表格式：`[aggressiveness=TIER] 删除强寒暄: 'xxx'` 或 `删除软开头` 或 `删除 filler 词`；若无匹配则记录 `未检测到可删除的寒暄词或 filler 词`
+结尾套话（新增 4 条）：
+```
+\blooking forward to your (response|reply|feedback)[^.]*[.!]*
+\bbest regards[^.]*[.!]*
+\bkind regards[^.]*[.!]*
+\bhope that (makes sense|helps|clarifies)[^.]*[.!]*
+```
 
-**已知局限**（代码注释 TODO）：
+**执行机制**：
+1. 开头清理：while 循环反复应用 LOW / MEDIUM / HIGH 开头正则，直到一轮扫描无任何匹配为止（处理叠加寒暄）
+2. 中间 filler 词（HIGH 档）：在循环外单独处理，匹配词组需两侧均有空格
+3. 结尾套话清理：按档位累积启用对应正则，全局匹配并删除，删除后清理双空格并 strip()
+4. 自动大写第一个字母
+- Changes 列表格式：`[aggressiveness=TIER] 删除强寒暄: 'xxx'`、`删除软开头`、`删除 filler 词`、`删除结尾套话`；若全部无匹配则记录 `未检测到可删除的填充语`
+
+**Scope boundary**:
+- 只处理**可直接删除的社交性填充语**:开头问候、礼貌开头(please/thanks 类)、中间 filler 词、结尾客套话
+- 不处理:**语义性冗长短语**(如 "in order to" → "to"),归 SemanticCompressorRule
+- 不处理:**输出格式指令词**(如 "please use bullet points" → "•"),归 FormatControlRule
+- 判定原则:**能直接删除而不损失信息的归本规则;只能压缩、不能删除的归 SemanticCompressorRule**
+
+**已知局限**：
 - 不支持多行/跨句的礼貌开头
 - 仅处理英文模式，暂不支持多语言（中文：你好/麻烦你；法文：Bonjour/Pourriez-vous）
 - 无法识别需要保留开头的场景（如客服/正式写作语境）
+- 无法检测语义等价的改写表达（如"hope that was useful"未列入固定模式）
 
 **验证用例**：
 
 用例 A（LOW）：
-- 输入：`"Hello, write a Python function to sort a list."`
+- 输入：`"Hello, write a Python function to sort a list. I hope this helps!"`
 - 期望输出：`"Write a Python function to sort a list."`
-- 期望改动：`["[aggressiveness=LOW] 删除强寒暄: 'Hello,'"]`
+- 期望改动：`["[aggressiveness=LOW] 删除强寒暄: 'Hello,'", "[aggressiveness=LOW] 删除结尾套话: 'I hope this helps!'"]`
 
 用例 B（HIGH）：
-- 输入：`"Hi! I was wondering if you could explain how this basically works."`
-- 期望输出：`"Explain how this works."` （Hi! 删除 → I was wondering if 删除 → you could... 无匹配 → basically 删除 → 首字母大写）
-- 期望改动：`["[aggressiveness=HIGH] 删除强寒暄: 'Hi!'", "[aggressiveness=HIGH] 删除软开头: 'i was wondering if'", "[aggressiveness=HIGH] 删除 filler 词: 'basically'"]`
+- 输入：`"Hi! I was wondering if you could explain how this basically works. Best regards!"`
+- 期望输出：`"Explain how this works."`
+- 期望改动：包含删除强寒暄、删除软开头、删除 filler 词 basically、删除结尾套话 Best regards
 
 ---
 
@@ -201,7 +261,7 @@ actually
 
 **注意**：DEBUG 比 CODING 优先级高（"fix" 和 "write" 都存在时，因 DEBUG 先检查，会分类为 DEBUG）
 
-**复杂度判断规则**（基于 TokenCounter.count() 词数）：
+**复杂度判断规则**（使用 `TokenCounter.wordCount()`，与 BPE token 数解耦）：
 - < 15 词 → `LOW`
 - 15–40 词 → `MEDIUM`
 - > 40 词 → `HIGH`
@@ -285,6 +345,12 @@ actually
 
 **Changes 列表格式**：`[compressionLevel=TIER] 'verbose phrase' → 'compressed'`；若无命中记录 `未找到可替换的冗余词组`
 
+**Scope boundary**:
+- 只处理**语义性冗长短语**的等价压缩(如 "in order to" → "to","due to the fact that" → "because")
+- 不处理:**可直接删除的社交语**(如 "please"、"hello"),归 FillerRemovalRule
+- 不处理:**输出格式指令词的符号化**(如 "use bullet points" → "•"),归 FormatControlRule
+- 判定原则:**输入和输出语义完全等价、仅长度变短**才属于本规则
+
 **已知局限**（代码注释）：
 - 替换表固定，无法检测未列举的冗余表达
 - 不保护引号内字符串、代码块和专有名词
@@ -297,27 +363,27 @@ actually
 ---
 
 ### 2.4 StructureMinimizerRule
-🔧 已实现但有已知局限（代码注释标注为"MOCK Implementation"）
+✅ 已实现（real algorithm）
 
 **四步清理逻辑**（`StructureMinimizerRule.java`，按实际执行顺序）：
 
 1. **清理每行尾部空格**：`lines().map(String::stripTrailing)` 后用 `\n` 重新拼接
    - 触发条件：任何行末尾有空格或 Tab
-   - Change 消息：`[MOCK] 清理每行尾部空格`
+   - Change 消息：`[structureMinimizer] 清理每行尾部空格`
 
 2. **折叠多余空行**：正则 `(\r?\n){3,}` → `\n\n`（3 个或以上连续换行折叠为 2 个）
    - 触发条件：存在 3 个以上连续换行符
-   - Change 消息：`[MOCK] 折叠多余空行`
+   - Change 消息：`[structureMinimizer] 折叠多余空行`
 
 3. **折叠多余空格**：正则 `[ \t]{2,}` → ` `（多个连续空格或 Tab 折叠为单空格）
    - 触发条件：存在 2 个或以上连续空格/Tab
-   - Change 消息：`[MOCK] 折叠多余空格`
+   - Change 消息：`[structureMinimizer] 折叠多余空格`
 
 4. **清理首尾空白**：`result.strip()`
    - 触发条件：文本首部或尾部有空白字符
-   - Change 消息：`[MOCK] 清理首尾空白`
+   - Change 消息：`[structureMinimizer] 清理首尾空白`
 
-**跳过条件**：若以上四步均无变化，Changes 列表记录 `[MOCK] Structure is already clean, no changes needed`
+**跳过条件**：若以上四步均无变化，Changes 列表记录 `Structure is already clean, no changes needed`
 
 **已知局限**（代码注释）：
 - 不检测冗余 Markdown 标题、重复分隔符（`----`）
@@ -328,7 +394,7 @@ actually
 **验证用例**：
 - 输入：`"Write a   function\n\n\n\nto sort  a list."`（含多余空格和 3 个以上空行）
 - 期望输出：`"Write a function\n\nto sort a list."`
-- 期望改动：`["[MOCK] 折叠多余空行", "[MOCK] 折叠多余空格"]`
+- 期望改动：`["[structureMinimizer] 折叠多余空行", "[structureMinimizer] 折叠多余空格"]`
 
 ---
 
@@ -415,7 +481,7 @@ actually
 ## 三、Level 2 优化规则
 
 ### 3.1 LengthControlRule
-🔧 已实现但有已知局限（代码注释标注为"MOCK Implementation"）
+✅ 已实现（real algorithm）
 
 **参数**：`maxWords`（int，默认 50；若传入 ≤ 0 则重置为 50）
 
@@ -425,8 +491,12 @@ actually
 - 若词数 ≤ maxWords，文本不变
 
 **Changes 消息**：
-- 截断时：`[MOCK] 截断至 N 词 (原 M 词)`
-- 无需截断：`[MOCK] 词数 M ≤ maxWords N，无需截断`
+- 截断时：`[lengthControl] 截断至 N 词 (原 M 词)`
+- 无需截断：`[lengthControl] 词数 M ≤ maxWords N，无需截断`
+
+**v3.1 更新**：截断阈值改用 `TokenCounter.wordCount()` 判断，
+与 BPE token 数解耦（maxWords 参数语义本就是词数）。`tokensBefore` /
+`tokensAfter` 仍用 `count()` 返回真实 BPE 数值供前端显示。
 
 **已知局限**（代码注释）：
 - 粗暴截断，不保证在句子边界处截断
@@ -436,12 +506,12 @@ actually
 **验证用例**：
 - 输入：`"Write a Python function that returns the sum of all even integers in a list."` （16 词，maxWords=10）
 - 期望输出：`"Write a Python function that returns the sum of all..."`
-- 期望改动：`["[MOCK] 截断至 10 词 (原 16 词)"]`
+- 期望改动：`["[lengthControl] 截断至 10 词 (原 16 词)"]`
 
 ---
 
 ### 3.2 FormatControlRule
-🔧 已实现但有已知局限（代码注释标注为"MOCK Implementation"）
+✅ 已实现（real algorithm）
 
 **完整替换列表**（`FormatControlRule.java`，全局大小写不敏感）：
 
@@ -456,7 +526,13 @@ actually
 | `as follows:` | `:` |
 | `the following:` | `:` |
 
-**Changes 消息**：`[MOCK] "verbose" → "compact"`；若无命中：`[MOCK] No verbose formatting instructions found`
+**Changes 消息**：`[formatControl] "verbose" → "compact"`；若无命中：`[formatControl] No verbose formatting instructions found`
+
+**Scope boundary**:
+- 只处理**输出格式指令词到符号的替换**(如 "bullet points:" → "•","numbered list:" → "1.")
+- 不处理:**一般冗长短语的语义压缩**,归 SemanticCompressorRule
+- 不处理:**社交性填充语**,归 FillerRemovalRule
+- 判定原则:**目标是改变输出形式(列表/加粗/代码块等)而非语义内容**才属于本规则
 
 **已知局限**（代码注释）：
 - 仅识别固定字符串，无法检测隐式格式意图（如"list the following items"）
@@ -465,45 +541,10 @@ actually
 **验证用例**：
 - 输入：`"Format using bullet points: apples, bananas."`
 - 期望输出：`"Format using • apples, bananas."`
-- 期望改动：`["[MOCK] \"bullet points:\" → \"•\""]`
+- 期望改动：`["[formatControl] \"bullet points:\" → \"•\""]`
 
 ---
 
-### 3.3 RedundancySuppressorRule
-🔧 已实现但有已知局限（代码注释标注为"MOCK Implementation"）
-
-**完整匹配模式列表**（`RedundancySuppressorRule.java`，均添加 `\b` 前缀，`CASE_INSENSITIVE`）：
-
-| 正则模式 |
-|---------|
-| `I hope this helps[.!]*` |
-| `please let me know[^.]*[.!]*` |
-| `feel free to ask[^.]*[.!]*` |
-| `don'?t hesitate to (ask\|contact)[^.]*[.!]*` |
-| `let me know if you have any (questions\|concerns\|issues)[^.]*[.!]*` |
-| `if you have any (questions\|concerns\|issues)[^.]*[.!]*` |
-| `thank you for your time[.!]*` |
-| `thanks in advance[.!]*` |
-| `looking forward to your (response\|reply\|feedback)[^.]*[.!]*` |
-| `best regards[^.]*[.!]*` |
-| `kind regards[^.]*[.!]*` |
-| `hope that (makes sense\|helps\|clarifies)[^.]*[.!]*` |
-
-**删除后的清理逻辑**：对删除后的文本执行 `replaceAll("[ \t]{2,}", " ").strip()`，清除双空格和首尾空白
-
-**Changes 消息**：`[MOCK] 删除结尾套话: "matched text"`；若无命中：`[MOCK] No closing filler phrases found`
-
-**已知局限**（代码注释）：
-- 仅匹配固定模式的变体，无法检测语义等价的改写表达
-- 不检测跨多句的结尾套话块
-- 不识别重复限制条件（如"请简短、简洁、简单"）
-
-**验证用例**：
-- 输入：`"Explain recursion. I hope this helps! Thanks in advance."`
-- 期望输出：`"Explain recursion."`
-- 期望改动：`["[MOCK] 删除结尾套话: \"I hope this helps!\"", "[MOCK] 删除结尾套话: \"Thanks in advance.\""]`
-
----
 
 ## 四、Prompt Generator
 
@@ -568,13 +609,12 @@ actually
 {
   "prompt": "Hello! I was wondering if you could write a function...",
   "rules": {
-    "inputCleaner":         { "enabled": true,  "params": { "aggressiveness": 50 } },
+    "fillerRemoval":        { "enabled": true,  "params": { "aggressiveness": 50 } },
     "taskAnalyzer":         { "enabled": true,  "params": {} },
     "semanticCompressor":   { "enabled": true,  "params": { "compressionLevel": 50 } },
     "structureMinimizer":   { "enabled": true,  "params": {} },
     "lengthControl":        { "enabled": true,  "params": { "maxWords": 50 } },
-    "formatControl":        { "enabled": true,  "params": {} },
-    "redundancySuppressor": { "enabled": true,  "params": {} }
+    "formatControl":        { "enabled": true,  "params": {} }
   }
 }
 ```
@@ -586,7 +626,7 @@ actually
 {
   "steps": [
     {
-      "ruleName": "Input Cleaner",
+      "ruleName": "Filler Removal",
       "ruleLevel": "Level 1",
       "inputText": "Hello! ...",
       "outputText": "Write a function...",
@@ -603,7 +643,7 @@ actually
     "final": 8,
     "compressionRate": 20.0,
     "byRule": {
-      "Input Cleaner": 2,
+      "Filler Removal": 2,
       "Task Analyzer": 0
     }
   }
@@ -624,20 +664,19 @@ Content-Type: application/json
 {
   "prompt": "Hello! Write a Python function.",
   "rules": {
-    "inputCleaner": { "enabled": true, "params": { "aggressiveness": 20 } },
+    "fillerRemoval": { "enabled": true, "params": { "aggressiveness": 20 } },
     "taskAnalyzer": { "enabled": false, "params": {} },
     "semanticCompressor": { "enabled": false, "params": {} },
     "structureMinimizer": { "enabled": false, "params": {} },
     "lengthControl": { "enabled": false, "params": {} },
-    "formatControl": { "enabled": false, "params": {} },
-    "redundancySuppressor": { "enabled": false, "params": {} }
+    "formatControl": { "enabled": false, "params": {} }
   }
 }
 
 期望响应（200）：
 {
   "steps": [
-    { "ruleName": "Input Cleaner", "status": "done",
+    { "ruleName": "Filler Removal", "status": "done",
       "inputText": "Hello! Write a Python function.",
       "outputText": "Write a Python function.",
       "tokensBefore": 5, "tokensAfter": 4, "tokensSaved": 1,
@@ -646,12 +685,11 @@ Content-Type: application/json
     { "ruleName": "Semantic Compressor", "status": "skipped", "tokensSaved": 0 },
     { "ruleName": "Structure Minimizer", "status": "skipped", "tokensSaved": 0 },
     { "ruleName": "Length Control",   "status": "skipped", "tokensSaved": 0 },
-    { "ruleName": "Format Control",   "status": "skipped", "tokensSaved": 0 },
-    { "ruleName": "Redundancy Suppressor", "status": "skipped", "tokensSaved": 0 }
+    { "ruleName": "Format Control",   "status": "skipped", "tokensSaved": 0 }
   ],
   "finalPrompt": "Write a Python function.",
   "tokenStats": { "original": 5, "final": 4, "compressionRate": 20.0,
-                  "byRule": { "Input Cleaner": 1, ... } }
+                  "byRule": { "Filler Removal": 1, ... } }
 }
 ```
 
@@ -693,17 +731,16 @@ Content-Type: application/json
 **响应体结构**（HTTP 200，返回 List）：
 ```json
 [
-  { "id": "inputCleaner",       "name": "Input Cleaner",       "level": "Level 1", "description": "Removes greetings and filler openers from prompts" },
+  { "id": "fillerRemoval",      "name": "Filler Removal",       "level": "Level 1", "description": "Removes greetings, polite openers, mid-text fillers, and closing remarks" },
   { "id": "taskAnalyzer",       "name": "Task Analyzer",        "level": "Level 1", "description": "Classifies task type and complexity, appends metadata tag" },
   { "id": "semanticCompressor", "name": "Semantic Compressor",  "level": "Level 1", "description": "Replaces verbose phrases with concise equivalents" },
   { "id": "structureMinimizer", "name": "Structure Minimizer",  "level": "Level 1", "description": "Removes redundant whitespace and normalises text structure" },
   { "id": "lengthControl",      "name": "Length Control",       "level": "Level 2", "description": "Truncates text that exceeds the max-words budget" },
-  { "id": "formatControl",      "name": "Format Control",       "level": "Level 2", "description": "Converts verbose formatting instructions to compact symbols" },
-  { "id": "redundancySuppressor","name": "Redundancy Suppressor","level": "Level 2", "description": "Removes closing filler sentences that add no prompt value" }
+  { "id": "formatControl",      "name": "Format Control",       "level": "Level 2", "description": "Converts verbose formatting instructions to compact symbols" }
 ]
 ```
 
-**用途**：前端可用此接口动态渲染规则配置面板（当前前端硬编码了 7 条规则的 HTML，未实际调用此接口）
+**用途**：前端可用此接口动态渲染规则配置面板（当前前端硬编码了 8 条规则的 HTML，未实际调用此接口）
 
 ---
 
@@ -757,7 +794,7 @@ Content-Type: application/json
 - 步骤编号图标：tokensSaved > 0 → `✓`（绿色）；< 0 → `+`（警告色）；= 0 → `—`（中性色）
 - Level badge：Level 1 → 蓝色；Level 2 → 红色
 - Token pill 颜色逻辑：tokensSaved > 0 → 绿色（`−N tokens`）；< 0 → 红色（`+N tokens`）；= 0 → 灰色（`0 tokens`）
-- 参数摘要文字（param text）：inputCleaner 显示 `Aggressiveness: LOW/MID/HIGH`；semanticCompressor 显示 `Compression Level: LOW/MID/HIGH`；lengthControl 显示 `Max words: N`；其他规则无此行
+- 参数摘要文字（param text）：fillerRemoval 显示 `Aggressiveness: LOW/MID/HIGH`；semanticCompressor 显示 `Compression Level: LOW/MID/HIGH`；lengthControl 显示 `Max words: N`；其他规则无此行
 
 **步骤详情三个 detail block**：
 - 蓝色 `Parameter used` 块：说明当前参数档位的含义（有参数的规则才显示）
@@ -823,13 +860,13 @@ Content-Type: application/json
 
 **状态管理**（`state` 对象，全局单例）：
 - `state.prompt`：当前 textarea 内容
-- `state.rules`：7 条规则的 enabled 和 params 配置
+- `state.rules`：8 条规则的 enabled 和 params 配置
 - `state.result`：最近一次 optimize 的完整响应
 - `state.currentPage`：当前页码（1/2/3/4）
 - `state.completedPages`：已解锁的页码集合（Set）；Page 4 在点击 "Run Quality Check" 时写入
 
 **ℹ 弹窗系统**（`showModal` / `closeModal`）：
-- 所有 7 条规则均有 ℹ 按钮，均有对应的 `RULE_INFO` 条目
+- 所有 8 条规则均有 ℹ 按钮，均有对应的 `RULE_INFO` 条目
 - 弹窗内容结构：What it does → Parameters（有参数的规则）→ Example（Before/After）→ Planned improvements
 - 关闭方式：点击 `×` 按钮、点击遮罩层（`onclick="closeModal()"`）、按 `Escape` 键
 - 打开时 `document.body.style.overflow = 'hidden'` 禁止背景滚动；关闭时恢复
@@ -966,9 +1003,9 @@ optimizationScore = (efficiencyAfter - efficiencyBefore) / efficiencyBefore × 1
 ### 优先级中
 
 **真实 BPE Tokenizer**
-- 📋 待开发
-- 替换 `TokenCounter.java` 的空格估算
-- 目标：使用 Anthropic 官方 tokenizer 或 tiktoken，按子词单元（subword units）计数
+- ✅ 已完成（v3.1）
+- jtokkit 1.1.0（OpenAI tiktoken Java 移植），`o200k_base` 编码器，与 gpt-4o-mini 对齐
+- 新增 `wordCount()` 供逻辑判断，`count()` 用于前端显示，双语义干净分离
 
 **Level 3 上下文优化**
 - 📋 待开发（`RuleRegistryConfig.java` 中已有注释占位）
@@ -990,9 +1027,9 @@ optimizationScore = (efficiencyAfter - efficiencyBefore) / efficiencyBefore × 1
 - 📋 Level 4 系统级优化（`RuleRegistryConfig.java` 占位注释：`LLMRewriteRule`）
 - 📋 Level 5 高级优化
 - 📋 StructureMinimizerRule 升级：检测重复段落、冗余 Markdown 标题、空列表项
-- 📋 RedundancySuppressorRule 升级：语义相似度检测、多句结尾套话块处理
+- 📋 FillerRemovalRule 升级：语义相似度检测、多语言支持、上下文感知模式
 - 📋 LengthControlRule 升级：摘要替代截断、句子边界感知
 
 ---
 
-*最后更新：2026/4/15 · 维护人：Andy*
+*最后更新：2026/4/25 · 维护人：Andy*

@@ -81,7 +81,7 @@ The built-in generator produces "dirty" prompts — intentionally verbose, polit
 
 | # | Rule | Level | Configurable Parameter |
 |---|------|-------|----------------------|
-| 1 | Input Cleaner | Level 1 | `aggressiveness` (LOW / MID / HIGH) |
+| 1 | Filler Removal | Level 1 | `aggressiveness` (LOW / MID / HIGH) |
 | 2 | Task Analyzer | Level 1 | — |
 | 3 | Semantic Compressor | Level 1 | `compressionLevel` (LOW / MID / HIGH) |
 | 4 | Structure Minimizer | Level 1 | — |
@@ -89,7 +89,6 @@ The built-in generator produces "dirty" prompts — intentionally verbose, polit
 | 6 | Number Normalizer | Level 1 | — |
 | 7 | Length Control | Level 2 | `maxWords` (integer) |
 | 8 | Format Control | Level 2 | — |
-| 9 | Redundancy Suppressor | Level 2 | — |
 
 ### Pipeline Visualization
 
@@ -143,9 +142,9 @@ Every optimization run produces a full audit trail. The frontend renders each ru
 │             │                                                      │
 │   ┌─────────┴──────────────────────────────────────────────────┐  │
 │   │  Level 1                          Level 2                  │  │
-│   │  ├── InputCleanerRule             ├── LengthControlRule    │  │
-│   │  ├── TaskAnalyzerRule             ├── FormatControlRule    │  │
-│   │  ├── SemanticCompressorRule       └── RedundancySuppressor │  │
+│   │  ├── FillerRemovalRule            ├── LengthControlRule    │  │
+│   │  ├── TaskAnalyzerRule             └── FormatControlRule    │  │
+│   │  ├── SemanticCompressorRule                                │  │
 │   │  ├── StructureMinimizerRule                                │  │
 │   │  ├── PunctuationNormalizerRule                             │  │
 │   │  └── NumberNormalizerRule                                  │  │
@@ -218,15 +217,14 @@ BetterPromptByAndyy2.0/
     │   │       ├── TokenCounter.java               # Token counter (word-split approximation)
     │   │       │
     │   │       ├── level1/                         # Input Processing Rules
-    │   │       │   ├── InputCleanerRule.java       # Remove greetings and polite openers
+    │   │       │   ├── FillerRemovalRule.java      # Remove greetings, openers, mid-text fillers, and closing remarks
     │   │       │   ├── TaskAnalyzerRule.java       # Classify task type and complexity
     │   │       │   ├── SemanticCompressorRule.java # Verbose-phrase → concise substitutions
     │   │       │   └── StructureMinimizerRule.java # Whitespace and blank-line normalization
     │   │       │
     │   │       └── level2/                         # Output Control Rules
     │   │           ├── LengthControlRule.java      # Hard word-count truncation
-    │   │           ├── FormatControlRule.java      # Verbose format instructions → symbols
-    │   │           └── RedundancySuppressorRule.java # Remove closing filler sentences
+    │   │           └── FormatControlRule.java      # Verbose format instructions → symbols
     │   │
     │   └── resources/
     │       ├── application.properties              # Port, app name, Anthropic API config
@@ -249,22 +247,21 @@ These rules run first and operate on the raw input prompt. Their job is to strip
 
 ---
 
-#### 1. Input Cleaner
+#### 1. Filler Removal
 
-Removes social greetings and polite filler phrases from the beginning (and, at HIGH aggressiveness, the middle) of a prompt.
+Removes social filler from prompts across all positions: greetings at the start, polite openers, mid-text filler words, and closing remarks at the end. Controlled by the `aggressiveness` parameter, mapped to three tiers:
 
-Controlled by the `aggressiveness` parameter, mapped to three tiers:
-
-| Tier | Range | What gets removed |
-|------|-------|-------------------|
-| LOW  | 0–30  | `hello`, `hi`, `hey`, `good morning/afternoon/evening` |
-| MID  | 31–70 | LOW + `please`, `could you`, `can you`, `would you`, `I need you to`, `I was hoping you could` |
-| HIGH | 71–100 | MID + `I was wondering if`, `I'd like you to`, `I am reaching out because` + mid-text fillers: `basically`, `essentially`, `literally`, `actually` |
+| Tier | Range | Opening removed | Closing remarks removed |
+|------|-------|-----------------|------------------------|
+| LOW  | 0–30  | `hello`, `hi`, `hey`, `good morning/afternoon/evening` | "I hope this helps", "thanks in advance", "thank you for your time" |
+| MID  | 31–70 | LOW + `please`, `could you`, `can you`, `would you`, `I need you to`, `I was hoping you could` | LOW + "please let me know", "feel free to ask", "don't hesitate", "let me know if you have any questions", "if you have any questions" |
+| HIGH | 71–100 | MID + `I was wondering if`, `I'd like you to`, `I am reaching out because` + mid-text fillers: `basically`, `essentially`, `literally`, `actually` | MID + "looking forward to your response", "best regards", "kind regards", "hope that makes sense" |
 
 The change log records every specific removal, e.g.:
 ```
-[aggressiveness=HIGH] Removed filler opener: "Hello!"
-[aggressiveness=HIGH] Removed mid-text filler: "basically"
+[aggressiveness=HIGH] 删除强寒暄: 'Hello!'
+[aggressiveness=HIGH] 删除 filler 词: 'basically'
+[aggressiveness=HIGH] 删除结尾套话: 'Best regards!'
 ```
 
 ---
@@ -391,29 +388,6 @@ Replaces verbose, human-readable formatting instructions with their compact symb
 
 ---
 
-#### 9. Redundancy Suppressor
-
-Removes closing filler sentences that appear frequently at the end of user-written prompts. These sentences are entirely ignored by LLMs but consume tokens.
-
-Detects and removes patterns including:
-
-```
-"I hope this helps"
-"please let me know"
-"thanks in advance"
-"feel free to ask"
-"don't hesitate to ask"
-"let me know if you need anything"
-"looking forward to your response"
-"any help would be appreciated"
-"thank you for your time"
-"I appreciate your help"
-"please feel free"
-"if you have any questions"
-```
-
-Matching is case-insensitive and uses regex anchored to sentence boundaries.
-
 ---
 
 ## API Reference
@@ -428,7 +402,7 @@ Run the full optimization pipeline on a prompt.
 {
   "prompt": "Hello! I was hoping you could please help me write a Python function to sort a list. Thanks in advance!",
   "rules": {
-    "inputCleaner": {
+    "fillerRemoval": {
       "enabled": true,
       "params": { "aggressiveness": 85 }
     },
@@ -449,10 +423,6 @@ Run the full optimization pipeline on a prompt.
       "params": { "maxWords": 50 }
     },
     "formatControl": {
-      "enabled": true,
-      "params": {}
-    },
-    "redundancySuppressor": {
       "enabled": true,
       "params": {}
     }
@@ -573,10 +543,10 @@ Returns metadata for all registered rules in pipeline order.
 ```json
 [
   {
-    "id": "inputCleaner",
-    "name": "Input Cleaner",
+    "id": "fillerRemoval",
+    "name": "Filler Removal",
     "level": "Level 1",
-    "description": "Removes greetings and filler openers from prompts"
+    "description": "Removes greetings, polite openers, mid-text fillers, and closing remarks"
   },
   {
     "id": "taskAnalyzer",
@@ -607,12 +577,6 @@ Returns metadata for all registered rules in pipeline order.
     "name": "Format Control",
     "level": "Level 2",
     "description": "Replaces verbose formatting instructions with symbols"
-  },
-  {
-    "id": "redundancySuppressor",
-    "name": "Redundancy Suppressor",
-    "level": "Level 2",
-    "description": "Removes closing filler sentences"
   }
 ]
 ```
@@ -655,7 +619,7 @@ Generate a sample prompt for testing the optimizer.
 | Build | Maven |
 | Frontend | HTML5, CSS3, JavaScript (no external libraries) |
 | AI API | Anthropic Claude (integration in progress) |
-| Token counting | Whitespace-split approximation (word count) |
+| Token counting | jtokkit 1.1.0 (OpenAI tiktoken Java port, `o200k_base` encoder) |
 
 The frontend deliberately uses no third-party libraries. All UI components — cards, toggles, tier buttons, modals, the token bar chart — are implemented in vanilla JavaScript and CSS.
 
@@ -705,13 +669,11 @@ Open `http://localhost:8080` in your browser.
 
 ## Roadmap
 
-- [x] v1.0 — Spring Boot project scaffold, REST API skeleton
-- [x] v1.1 — Level 1 & Level 2 rule implementations with real algorithms
-- [x] v1.2 — Prompt Generator template library (45 templates)
-- [x] v1.3 — Three-page SPA + pipeline visualization UI
-- [x] v2.0 — OpenAI API integration (AI Generate + quality comparison)
-- [x] v3.0 — Punctuation Normalizer + Number Normalizer（两条新 Level 1 规则）
-- [ ] v2.1 — Real BPE tokenizer to replace whitespace-split approximation
+- [x] v1.0 — Spring Boot project scaffold, REST API skeleton, Level 1 & 2 rules, Prompt Generator, three-page SPA (tag: v1.0.4)
+- [x] v2.0 — Quality Check feature (OpenAI-powered side-by-side comparison)
+- [x] v2.1 — AI Generate (OpenAI-powered prompt generation)
+- [x] v3.0 — Punctuation Normalizer + Number Normalizer; merged InputCleaner + RedundancySuppressor → FillerRemovalRule (tag: v3.0)
+- [x] v3.1 — Real BPE tokenizer via jtokkit (o200k_base, aligned with gpt-4o-mini); MOCK label cleanup; version-numbering alignment
 - [ ] v4.0 — Level 3: context optimization (deduplication, reference compression)
 - [ ] v5.0 — Level 4 & 5: system-level optimization (system prompt factoring, conversation compression)
 
@@ -731,11 +693,25 @@ A machine learning classifier for five task categories would require a labeled t
 
 Keyword matching is deterministic, zero-latency, fully debuggable, and requires no external dependencies. If the classification is wrong, the cause is immediately visible in the keyword list. An ML model would require explainability tooling to achieve the same level of transparency.
 
-### Why whitespace-split word count instead of a real BPE tokenizer?
+### Why jtokkit BPE for token counting?
 
-Integrating a real tokenizer (Anthropic BPE, tiktoken) would require a native library or subprocess call that adds platform-specific complexity. For the purposes of demonstrating compression ratios and pipeline comparisons, a word-count approximation preserves the relative ordering: if rule A saves more words than rule B, it will also save more tokens in practice. The absolute numbers are estimates, and the UI labels them as such.
+The optimizer's core value proposition is "reduce token usage" — which
+demands that token counts match what the LLM actually sees. Whitespace-split
+word count was the v1.0 placeholder, and it was systematically wrong:
+punctuation was undercounted (`Hello world!` reports 2 words but 3 BPE tokens),
+sub-word splits were invisible, and the resulting compression ratios drifted
+from reality the longer the prompt got. v3.1 replaces this with
+[jtokkit](https://github.com/knuddels/jtokkit), a Java port of OpenAI's
+tiktoken, using the `o200k_base` encoder — the same vocabulary used by
+`gpt-4o-mini`, which this project already calls for AI Generate and Quality Check.
 
-The architecture already isolates all token counting in a single `TokenCounter` class. Replacing the approximation with a real tokenizer is a one-file change.
+The architecture made this swap clean: every token count in the codebase goes
+through `TokenCounter.count(String)`, so the BPE upgrade was a single-file
+change with zero modifications to the 11 call sites. Rules that needed
+"word count" semantics (TaskAnalyzer's complexity thresholds, LengthControl's
+`maxWords` budget) were migrated to a new `TokenCounter.wordCount()` method —
+keeping logical decisions on word count while showing real BPE numbers
+in the UI.
 
 ### Why LOW / MID / HIGH instead of exposing raw numeric parameters?
 
@@ -743,4 +719,4 @@ Exposing raw numbers to a UI creates a usability problem: a user setting `aggres
 
 ---
 
-*Built by Andy · 2026 · Last updated 2026/04/15*
+*Built by Andy · 2026 · Last updated 2026/04/25*

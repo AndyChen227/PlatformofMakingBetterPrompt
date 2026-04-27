@@ -77,7 +77,10 @@ public class TaskAnalyzerRule implements Rule {
         }
 
         // ── Classify complexity ───────────────────────────────────────
-        int wordCount = tokensBefore;
+        // 使用真实词数而非 BPE token 数:复杂度判断的语义是"句子有多复杂",
+        // 词数比 token 数更直观;阈值 15/40 历史上就是按词数定的。
+        // tokensBefore 仍保留供前端显示真实 BPE token 数。
+        int wordCount = TokenCounter.wordCount(inputText);
         String complexity;
         if (wordCount < 15)       complexity = "LOW";
         else if (wordCount <= 40) complexity = "MEDIUM";

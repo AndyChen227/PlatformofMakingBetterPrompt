@@ -9,7 +9,7 @@ import java.util.List;
 
 /**
  * ============================================================
- *  MOCK Implementation — Length Control Rule
+ *  Length Control Rule — Real Implementation
  * ============================================================
  * Current behaviour:
  *   If the word count exceeds the "maxWords" parameter (default 50),
@@ -42,10 +42,15 @@ public class LengthControlRule implements Rule {
         int maxWords = config.getIntParam("maxWords", DEFAULT_MAX_WORDS);
         if (maxWords <= 0) maxWords = DEFAULT_MAX_WORDS;
 
+        // 截断阈值的语义是"词数 budget",与 BPE token 数解耦。
+        // tokensBefore 仍保留供前端显示真实 BPE token 数,但截断判断
+        // 与文案统一使用 wordCount,避免 BPE token 数虚高误触发截断。
+        int wordCount = TokenCounter.wordCount(inputText);
+
         String result = inputText;
         String changeMsg;
 
-        if (tokensBefore > maxWords) {
+        if (wordCount > maxWords) {
             String[] words = inputText.trim().split("\\s+");
             StringBuilder sb = new StringBuilder();
             for (int i = 0; i < maxWords && i < words.length; i++) {
@@ -54,9 +59,9 @@ public class LengthControlRule implements Rule {
             }
             sb.append("...");
             result = sb.toString();
-            changeMsg = "[MOCK] 截断至 " + maxWords + " 词 (原 " + tokensBefore + " 词)";
+            changeMsg = "[lengthControl] 截断至 " + maxWords + " 词 (原 " + wordCount + " 词)";
         } else {
-            changeMsg = "[MOCK] 词数 " + tokensBefore + " ≤ maxWords " + maxWords + "，无需截断";
+            changeMsg = "[lengthControl] 词数 " + wordCount + " ≤ maxWords " + maxWords + "，无需截断";
         }
 
         int tokensAfter = TokenCounter.count(result);
