@@ -9,6 +9,7 @@ import com.betterprompt.betterpromptbyandyy2.optimizer.level1.StructureMinimizer
 import com.betterprompt.betterpromptbyandyy2.optimizer.level1.TaskAnalyzerRule;
 import com.betterprompt.betterpromptbyandyy2.optimizer.level2.FormatControlRule;
 import com.betterprompt.betterpromptbyandyy2.optimizer.level2.LengthControlRule;
+import com.betterprompt.betterpromptbyandyy2.optimizer.level2.SentenceBudgetRule;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -51,7 +52,8 @@ public class RuleRegistryConfig {
             new NumberNormalizerRule(),         // 英文数字词 → 阿拉伯数字
 
             // ── Level 2: Output Control ────────────────────────────────
-            new LengthControlRule(),      // Hard-truncate if over maxWords budget
+            new SentenceBudgetRule(),     // Limit prompt by sentence count before hard word truncation
+            new LengthControlRule(),      // Final hard word-budget guard
             new FormatControlRule()       // Compact formatting instructions
 
             // ── Future: Level 3 (add here without touching other files) ─

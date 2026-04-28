@@ -17,6 +17,7 @@ const state = {
     structureMinimizer:     { enabled: true,  params: {} },
     punctuationNormalizer:  { enabled: true,  params: {} },
     numberNormalizer:       { enabled: true,  params: {} },
+    sentenceBudget:         { enabled: true,  params: { maxSentences: 3 } },
     lengthControl:          { enabled: true,  params: { maxWords: 50 } },
     formatControl:          { enabled: true,  params: {} },
   },
@@ -33,6 +34,7 @@ const RULE_ORDER = [
   'structureMinimizer',
   'punctuationNormalizer',
   'numberNormalizer',
+  'sentenceBudget',
   'lengthControl',
   'formatControl',
 ];
@@ -41,7 +43,7 @@ const RULE_LEVEL = {
   fillerRemoval: 'l1', taskAnalyzer: 'l1',
   semanticCompressor: 'l1', structureMinimizer: 'l1',
   punctuationNormalizer: 'l1', numberNormalizer: 'l1',
-  lengthControl: 'l2', formatControl: 'l2',
+  sentenceBudget: 'l2', lengthControl: 'l2', formatControl: 'l2',
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -144,6 +146,23 @@ const RULE_INFO = {
       'Protect numbers inside code blocks and quoted strings',
     ],
   },
+  sentenceBudget: {
+    name: 'Sentence Budget',
+    level: 'Level 2',
+    levelClass: 'badge-red',
+    what: 'Limits the prompt by maximum sentence count. If the prompt has more sentences than the configured budget, it keeps the first N complete sentences before Length Control applies the final word-budget guard.',
+    hasParams: true,
+    params: [
+      { tier: 'Max Sentences', cls: 'badge-blue', text: 'Number input (default: 3). Prompt is truncated to this many sentences if it exceeds the limit.' },
+    ],
+    exBefore: 'Explain recursion. Give examples. Mention edge cases. Keep it simple.',
+    exAfter: 'Explain recursion. Give examples. ...',
+    future: [
+      'Sentence-boundary detection for abbreviations and code snippets',
+      'Importance-aware sentence selection instead of keeping only the first N sentences',
+      'Adaptive sentence budget based on task type and complexity',
+    ],
+  },
   lengthControl: {
     name: 'Length Control',
     level: 'Level 2',
@@ -215,11 +234,23 @@ function initUI() {
     });
   });
 
+  // Max sentences input
+  const maxSentencesEl = $('maxSentencesInput');
+  if (maxSentencesEl) {
+    maxSentencesEl.addEventListener('input', () => {
+      const v = parseInt(maxSentencesEl.value, 10);
+      if (!isNaN(v) && v > 0) state.rules.sentenceBudget.params.maxSentences = v;
+    });
+  }
+
   // Max words input
-  $('maxWordsInput').addEventListener('input', () => {
-    const v = parseInt($('maxWordsInput').value, 10);
-    if (!isNaN(v) && v > 0) state.rules.lengthControl.params.maxWords = v;
-  });
+  const maxWordsEl = $('maxWordsInput');
+  if (maxWordsEl) {
+    maxWordsEl.addEventListener('input', () => {
+      const v = parseInt(maxWordsEl.value, 10);
+      if (!isNaN(v) && v > 0) state.rules.lengthControl.params.maxWords = v;
+    });
+  }
 
   // Page navigation
   updateCrumbs();
@@ -540,6 +571,9 @@ function buildParamSummaryText(ruleId) {
     const v = state.rules.semanticCompressor.params.compressionLevel;
     return `Compression Level: ${v <= 30 ? 'LOW' : v <= 70 ? 'MID' : 'HIGH'}`;
   }
+  if (ruleId === 'sentenceBudget') {
+    return `Max sentences: ${state.rules.sentenceBudget.params.maxSentences}`;
+  }
   if (ruleId === 'lengthControl') {
     return `Max words: ${state.rules.lengthControl.params.maxWords}`;
   }
@@ -558,6 +592,9 @@ function buildParamDescription(ruleId) {
     if (v <= 30) return 'LOW — 8 safe substitutions (e.g. "in order to" → "to", "due to the fact that" → "because")';
     if (v <= 70) return 'MID — 19 substitutions including "make a decision" → "decide", "take into consideration" → "consider"';
     return 'HIGH — 29 substitutions including "has the ability to" → "can", "the fact that" → "that"';
+  }
+  if (ruleId === 'sentenceBudget') {
+    return `Max sentences: ${state.rules.sentenceBudget.params.maxSentences} - keeps the first complete sentences before word-budget truncation`;
   }
   if (ruleId === 'lengthControl') {
     return `Max words: ${state.rules.lengthControl.params.maxWords} — truncates prompt exceeding this word budget`;

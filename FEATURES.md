@@ -11,12 +11,12 @@
 |------|--------|-----------|--------------|----------|
 | 后端核心框架 | 4 | 3 | 1 | 0 |
 | Level 1 优化规则 | 6 | 4 | 2 | 0 |
-| Level 2 优化规则 | 2 | 0 | 2 | 0 |
+| Level 2 优化规则 | 3 | 1 | 2 | 0 |
 | Prompt Generator | 2 | 2 | 0 | 0 |
 | REST API | 4 | 4 | 0 | 0 |
 | 前端 UI | 5 | 5 | 0 | 0 |
 | 质量对比（Quality Check） | 6 | 6 | 0 | 0 |
-| **合计** | **29** | **23** | **6** | **0** |
+| **合计** | **30** | **24** | **6** | **0** |
 
 ---
 
@@ -60,7 +60,7 @@
 
 **byRule 贡献度 Map**：key 为 `rule.getRuleName()`，value 为 `Math.max(0, step.getTokensSaved())`（负值（TaskAnalyzer 追加 tag 时）记为 0）
 
-**验证方式**：POST /api/optimize，传入包含多条规则的请求；检查响应中 steps 数组长度等于注册规则数（7），跳过的 rules status="skipped"，执行的 rules status="done"
+**验证方式**：POST /api/optimize，传入包含多条规则的请求；检查响应中 steps 数组长度等于注册规则数（7），跳过的 rules status="skipped"，执行的 rules status="done"（注：规则总数已更新为 9）
 
 ---
 
@@ -77,8 +77,9 @@
 | 4 | `StructureMinimizerRule` | `structureMinimizer` | Level 1 |
 | 5 | `PunctuationNormalizerRule` | `punctuationNormalizer` | Level 1 |
 | 6 | `NumberNormalizerRule` | `numberNormalizer` | Level 1 |
-| 7 | `LengthControlRule` | `lengthControl` | Level 2 |
-| 8 | `FormatControlRule` | `formatControl` | Level 2 |
+| 7 | `SentenceBudgetRule` | `sentenceBudget` | Level 2 |
+| 8 | `LengthControlRule` | `lengthControl` | Level 2 |
+| 9 | `FormatControlRule` | `formatControl` | Level 2 |
 
 **新增规则的步骤**：
 1. 创建 `YourNewRule.java`，实现 `Rule` 接口（放在 `optimizer/` 下任意子包）
@@ -480,7 +481,51 @@ actually
 
 ## 三、Level 2 优化规则
 
-### 3.1 LengthControlRule
+### 3.1 SentenceBudgetRule
+✅ 已完成并测试
+
+**功能说明：**
+按句子数量限制 prompt 长度。若 prompt 的句子数超过 `maxSentences`，则保留前 N 个完整句子，并在末尾追加 `...`。
+
+**参数：**
+- `maxSentences`：最大保留句子数，默认 3；若传入 ≤ 0，则重置为 3
+
+**执行逻辑：**
+1. inputText 为 null 时视为空字符串
+2. 使用简单英文句子切分规则识别句子，句末标点包括 `.`, `?`, `!`
+3. 如果句子数 ≤ maxSentences，文本保持不变
+4. 如果句子数 > maxSentences，保留前 maxSentences 个句子
+5. 截断后追加 `...`
+6. tokensBefore / tokensAfter 使用 `TokenCounter.count()` 统计真实 BPE token
+
+**Changes 消息：**
+- 截断时：`[sentenceBudget] 保留前 N 句 (原 M 句)`
+- 无需截断：`[sentenceBudget] 句子数 M ≤ maxSentences N，无需截断`
+- 输入为空：`[sentenceBudget] 输入为空，无需处理`
+
+**Scope boundary:**
+- 只按句子数量限制 prompt 长度
+- 不按词数截断，归 LengthControlRule
+- 不按 token 截断
+- 不总结内容
+- 不判断句子重要性
+- 不删除重复句，未来归 DuplicateSentenceRemoverRule
+
+**已知局限：**
+- 第一版只保留前 N 句，不判断句子重要性
+- 简单句子切分可能被缩写、URL、版本号或代码片段干扰
+- 不保护代码块、JSON、Markdown 表格和引号内容
+- 不会自动保留末尾关键要求
+
+**验证用例：**
+- 输入：`"Explain recursion. Give examples. Mention edge cases. Keep it simple."`
+- 参数：`maxSentences=2`
+- 期望输出：`"Explain recursion. Give examples. ..."`
+- 期望改动：`"[sentenceBudget] 保留前 2 句 (原 4 句)"`
+
+---
+
+### 3.2 LengthControlRule
 ✅ 已实现（real algorithm）
 
 **参数**：`maxWords`（int，默认 50；若传入 ≤ 0 则重置为 50）
@@ -498,6 +543,14 @@ actually
 与 BPE token 数解耦（maxWords 参数语义本就是词数）。`tokensBefore` /
 `tokensAfter` 仍用 `count()` 返回真实 BPE 数值供前端显示。
 
+**v3.2 更新**：`LengthControlRule` 保留为最终 maxWords 硬兜底规则。它不负责按句子数量裁剪；句子数量控制由 `SentenceBudgetRule` 负责。推荐执行顺序是：`SentenceBudgetRule → LengthControlRule`。
+
+**Scope boundary:**
+- 只负责按词数预算做最终硬截断
+- 不负责按句子数量裁剪，归 SentenceBudgetRule
+- 不总结内容
+- 不判断句子重要性
+
 **已知局限**（代码注释）：
 - 粗暴截断，不保证在句子边界处截断
 - 不保留结论/指令（优先保留开头而非核心任务描述）
@@ -510,7 +563,7 @@ actually
 
 ---
 
-### 3.2 FormatControlRule
+### 3.3 FormatControlRule
 ✅ 已实现（real algorithm）
 
 **完整替换列表**（`FormatControlRule.java`，全局大小写不敏感）：

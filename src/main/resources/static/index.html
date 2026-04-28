@@ -291,7 +291,31 @@
       <div class="level-block" style="margin-top:16px;">
         <div class="level-block-header">
           <span class="badge badge-red-lg">Level 2 · Output Control</span>
-          <span class="level-count">2 rules</span>
+          <span class="level-count">3 rules</span>
+        </div>
+
+        <!-- SentenceBudget -->
+        <div class="rule-card level2" id="rcard-sentenceBudget">
+          <div class="rule-left-bar bar-red"></div>
+          <div class="rule-body">
+            <div class="rule-row1">
+              <div class="rule-row1-left">
+                <label class="toggle">
+                  <input type="checkbox" class="rule-toggle" data-rule="sentenceBudget" checked />
+                  <span class="toggle-track"></span>
+                </label>
+                <span class="rule-name">Sentence Budget</span>
+              </div>
+              <button class="info-btn" onclick="showModal('sentenceBudget')" title="Learn more">&#9432;</button>
+            </div>
+            <div class="rule-desc">Limit prompt by maximum sentence count before word-budget truncation</div>
+            <div class="rule-params" id="params-sentenceBudget">
+              <label class="maxwords-label">
+                Max sentences:
+                <input id="maxSentencesInput" type="number" class="maxwords-input" min="1" value="3" />
+              </label>
+            </div>
+          </div>
         </div>
 
         <!-- LengthControl -->

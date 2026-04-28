@@ -14,10 +14,10 @@
 
 （每次更新都要更新这一栏）
 
-- 当前版本：v3.1
-- 当前阶段：TokenCounter 接入 jtokkit BPE 完成，token 计数与 OpenAI gpt-4o-mini 完全对齐
-- 已完成模块数：10/10（Level 1 + Level 2 + Quality Check + AI Generate）
-- 下一步：Level 3 上下文优化（历史裁剪、摘要记忆、相关性过滤）
+- 当前版本：v3.2
+- 当前阶段：SentenceBudgetRule 已上线，Level 2 新增句子数量控制；LengthControlRule 保留为最终 maxWords 兜底规则
+- 已完成模块数：11/11（Level 1 + Level 2 + Quality Check + AI Generate + Sentence Budget）
+- 下一步：实现 DuplicateSentenceRemoverRule 或 CaseNormalizerRule
 
 ---
 
@@ -177,10 +177,29 @@
 
 ---
 
+### ✅ v3.2 — SentenceBudgetRule 上线（2026/4/27）
+
+产出：
+- 新增 `SentenceBudgetRule`（Level 2），通过 `maxSentences` 参数控制最多保留句子数
+- 默认 `maxSentences=3`，传入 ≤ 0 时自动回退为默认值
+- 使用简单英文句子切分规则，句末标点包括 `.`, `?`, `!`
+- 当句子数超过限制时，保留前 N 个完整句子并追加 `...`
+- `RuleRegistryConfig` 中 Level 2 执行顺序更新为：`SentenceBudgetRule → LengthControlRule → FormatControlRule`
+- `LengthControlRule` 保留为最终 maxWords 硬兜底规则，只更新注释和 description，不改变原有截断逻辑
+- 前端同步新增 `sentenceBudget` 配置、`RULE_ORDER`、`RULE_LEVEL`、`RULE_INFO`
+- `index.html` 新增 Sentence Budget 规则卡片和 `maxSentencesInput`
+- Level 2 UI 规则数量从 2 rules 更新为 3 rules
+
+状态：SentenceBudgetRule 全链路上线，后端 `/api/rules` 可返回 `sentenceBudget`，前端可配置并执行
+
+---
+
 ## 待完成功能
 
 | 功能 | 优先级 | 说明 |
 |------|--------|------|
+| DuplicateSentenceRemoverRule | 高 | 删除完整重复句，减少重复 token，建议作为 v3.2.1 下一步 |
+| CaseNormalizerRule | 中 | 修复异常大小写，提升后续关键词匹配稳定性 |
 | Level 3 上下文优化 | 中 | 历史裁剪、摘要记忆、相关性过滤 |
 | Level 4 系统级优化 | 低 | 缓存、模型分流、任务拆分 |
 | Level 5 高级优化 | 低 | 长期研究方向 |
@@ -204,6 +223,7 @@
 | 2026/4/20 | 合并 InputCleaner 和 RedundancySuppressor 为 FillerRemoval | 两者本质都是删除社交性填充语，区别仅在位置（开头/结尾），不是强划分维度。合并后用 aggressiveness 参数统一控制，减少职责重合，未来加中间位置的 filler 也无需新规则 |
 | 2026/4/25 | 在 FEATURES.md 中以 Scope boundary 段落明确 FillerRemoval / SemanticCompressor / FormatControl 三者的职责边界 | 防止未来新增词条时归属不清。统一判定原则:能直接删除的归 Filler,只能压缩的归 Compressor,改变输出形式的归 FormatControl |
 | 2026/4/25 | TokenCounter 选 jtokkit 而非自实现 BPE | jtokkit 是 OpenAI tiktoken 官方词表的 Java 移植，o200k_base 与项目实际调用的 gpt-4o-mini 完全对齐；纯 Java 无 native 依赖，零集成成本；自实现 BPE 需复刻整个词表与合并规则，无价值 |
+| 2026/4/27 | 保留 LengthControlRule，并新增 SentenceBudgetRule | SentenceBudgetRule 按句子数量做较自然的结构裁剪；LengthControlRule 继续作为最终 maxWords 硬兜底，两者控制单位不同，不构成功能重叠 |
 | 2026/4/25 | 文档版本号体系统一至 v3.x | 开发过程中用 v1.0–v1.8 做内部迭代标记，git tag 实际只打了 v1.0.4 和 v3.0；内部版本号与 tag 不对齐会造成混淆。统一规则：v1.0–v1.3 → v1.0（tag v1.0.4），v1.4 → v2.0，v1.5 → v2.1，v1.6 → v3.0（tag v3.0），v1.7 → v3.0.1，v1.8 → v3.1 |
 
 ---

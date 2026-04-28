@@ -87,8 +87,9 @@ The built-in generator produces "dirty" prompts — intentionally verbose, polit
 | 4 | Structure Minimizer | Level 1 | — |
 | 5 | Punctuation Normalizer | Level 1 | — |
 | 6 | Number Normalizer | Level 1 | — |
-| 7 | Length Control | Level 2 | `maxWords` (integer) |
-| 8 | Format Control | Level 2 | — |
+| 7 | Sentence Budget | Level 2 | `maxSentences` (integer) |
+| 8 | Length Control | Level 2 | `maxWords` (integer) |
+| 9 | Format Control | Level 2 | — |
 
 ### Pipeline Visualization
 
@@ -367,15 +368,19 @@ These rules apply after the input has been cleaned and compressed. They enforce 
 
 ---
 
-#### 7. Length Control
+#### 7. Sentence Budget
 
-Enforces a hard maximum word count via the `maxWords` parameter (default: 50).
-
-If the prompt exceeds `maxWords`, the text is truncated at the last word boundary before the limit and `...` is appended. This is a hard cutoff — it does not summarize or paraphrase.
+Limits the prompt by maximum sentence count before word-budget truncation. If the prompt exceeds `maxSentences` (default: 3), it keeps the first N complete sentences and appends an ellipsis. This rule runs before Length Control.
 
 ---
 
-#### 8. Format Control
+#### 8. Length Control
+
+Acts as the final hard word-budget guard. If the prompt still exceeds `maxWords` (default: 50) after earlier optimization rules, it truncates the text at a word boundary and appends `...`.
+
+---
+
+#### 9. Format Control
 
 Replaces verbose, human-readable formatting instructions with their compact symbol equivalents.
 
@@ -675,6 +680,7 @@ Open `http://localhost:8080` in your browser.
 - [x] v3.0 — Punctuation Normalizer + Number Normalizer (tag: v3.0)
 - [x] v3.0.1 — Merged FillerRemovalRule (Input Cleaner + Redundancy Suppressor)
 - [x] v3.1 — Real BPE tokenizer via jtokkit (o200k_base, aligned with gpt-4o-mini); MOCK label cleanup; version-numbering alignment
+- [x] v3.2 — SentenceBudgetRule (sentence-count limit before word-budget truncation)
 - [ ] v4.0 — Level 3: context optimization (deduplication, reference compression)
 - [ ] v5.0 — Level 4 & 5: system-level optimization (system prompt factoring, conversation compression)
 

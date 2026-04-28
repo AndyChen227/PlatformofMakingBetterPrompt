@@ -16,6 +16,10 @@ import java.util.List;
  *   the text is hard-truncated at the word boundary and "..." is appended.
  *   Words are split on whitespace.
  *
+ * Scope boundary:
+ *   This rule is the final hard word-budget guard.
+ *   It does not limit sentence count; SentenceBudgetRule handles sentence-count limits.
+ *
  * Future real algorithm should:
  *   - Summarise rather than truncate: use an extractive or abstractive
  *     summariser to preserve the most important content within the budget
@@ -32,7 +36,7 @@ public class LengthControlRule implements Rule {
     @Override public String getRuleId()      { return "lengthControl"; }
     @Override public String getRuleName()    { return "Length Control"; }
     @Override public String getRuleLevel()   { return "Level 2"; }
-    @Override public String getDescription() { return "Truncates text that exceeds the max-words budget"; }
+    @Override public String getDescription() { return "Final hard guard that truncates text exceeding the max-words budget"; }
 
     @Override
     public StepResult apply(String inputText, RuleConfig config) {
