@@ -1,4 +1,4 @@
-# BetterPrompt 功能清单 v3.1
+# BetterPrompt 功能清单 v1.5.4
 
 > 本文档根据实际代码生成，记录项目每个功能的实现状态、细节和验证方式。
 > 更新规则：每完成或修改一个功能，同步更新对应条目。
@@ -10,13 +10,13 @@
 | 模块 | 功能数 | ✅ 已完成 | 🔧 有已知局限 | ❌ 未实现 |
 |------|--------|-----------|--------------|----------|
 | 后端核心框架 | 4 | 3 | 1 | 0 |
-| Level 1 优化规则 | 6 | 4 | 2 | 0 |
+| Level 1 优化规则 | 9 | 7 | 2 | 0 |
 | Level 2 优化规则 | 3 | 1 | 2 | 0 |
 | Prompt Generator | 2 | 2 | 0 | 0 |
 | REST API | 4 | 4 | 0 | 0 |
 | 前端 UI | 5 | 5 | 0 | 0 |
 | 质量对比（Quality Check） | 6 | 6 | 0 | 0 |
-| **合计** | **30** | **24** | **6** | **0** |
+| **合计** | **33** | **27** | **6** | **0** |
 
 ---
 
@@ -60,7 +60,7 @@
 
 **byRule 贡献度 Map**：key 为 `rule.getRuleName()`，value 为 `Math.max(0, step.getTokensSaved())`（负值（TaskAnalyzer 追加 tag 时）记为 0）
 
-**验证方式**：POST /api/optimize，传入包含多条规则的请求；检查响应中 steps 数组长度等于注册规则数（7），跳过的 rules status="skipped"，执行的 rules status="done"（注：规则总数已更新为 9）
+**验证方式**：POST /api/optimize，传入包含多条规则的请求；检查响应中 steps 数组长度等于注册规则数（11），跳过的 rules status="skipped"，执行的 rules status="done"
 
 ---
 
@@ -72,14 +72,17 @@
 | 执行顺序 | 类名 | ruleId | 所属 Level |
 |---------|------|--------|-----------|
 | 1 | `FillerRemovalRule` | `fillerRemoval` | Level 1 |
-| 2 | `TaskAnalyzerRule` | `taskAnalyzer` | Level 1 |
-| 3 | `SemanticCompressorRule` | `semanticCompressor` | Level 1 |
-| 4 | `StructureMinimizerRule` | `structureMinimizer` | Level 1 |
-| 5 | `PunctuationNormalizerRule` | `punctuationNormalizer` | Level 1 |
-| 6 | `NumberNormalizerRule` | `numberNormalizer` | Level 1 |
-| 7 | `SentenceBudgetRule` | `sentenceBudget` | Level 2 |
-| 8 | `LengthControlRule` | `lengthControl` | Level 2 |
-| 9 | `FormatControlRule` | `formatControl` | Level 2 |
+| 2 | `CaseNormalizerRule` | `caseNormalizer` | Level 1 |
+| 3 | `TaskAnalyzerRule` | `taskAnalyzer` | Level 1 |
+| 4 | `SemanticCompressorRule` | `semanticCompressor` | Level 1 |
+| 5 | `StructureMinimizerRule` | `structureMinimizer` | Level 1 |
+| 6 | `DuplicateSentenceRemoverRule` | `duplicateSentenceRemover` | Level 1 |
+| 7 | `DuplicatePhraseReducerRule` | `duplicatePhraseReducer` | Level 1 |
+| 8 | `PunctuationNormalizerRule` | `punctuationNormalizer` | Level 1 |
+| 9 | `NumberNormalizerRule` | `numberNormalizer` | Level 1 |
+| 10 | `SentenceBudgetRule` | `sentenceBudget` | Level 2 |
+| 11 | `LengthControlRule` | `lengthControl` | Level 2 |
+| 12 | `FormatControlRule` | `formatControl` | Level 2 |
 
 **新增规则的步骤**：
 1. 创建 `YourNewRule.java`，实现 `Rule` 接口（放在 `optimizer/` 下任意子包）
@@ -92,7 +95,7 @@
 
 ### 1.4 TokenCounter
 
-**实现状态：✅ 已实现（v3.1 接入真实 BPE）**
+**实现状态：✅ 已实现（v1.5.0 接入真实 BPE）**
 
 **算法说明：**
 
@@ -103,7 +106,7 @@
 实现要点：
 1. 应用启动时通过静态初始化块加载 `Encoding` 单例，BPE 词表只构建一次（约 100-200ms）
 2. `Encoding` 实例线程安全，所有 `count()` 调用零额外开销
-3. `count(String)` 方法签名与 v3.0 完全一致，所有调用方无需修改
+3. `count(String)` 方法签名与 v1.4.x 完全一致，所有调用方无需修改
 4. 新增 `wordCount(String)` 提供按空白分词的词数语义，供"逻辑判断"场景使用
 5. 新增 `getEncodingName()` 返回当前编码器名，便于调试
 
@@ -246,7 +249,67 @@ actually
 
 ---
 
-### 2.2 TaskAnalyzerRule
+### 2.2 CaseNormalizerRule
+✅ 已完成并测试
+
+**功能说明：**
+保守修复明显全大写的 prompt，将其转换为 sentence case，使输入文本更稳定、更易读。第一版只在大写英文字母比例达到阈值时触发，避免误改普通混合大小写文本。
+
+**参数：**
+- `uppercaseRatioThreshold`：大写英文字母比例阈值，默认 `0.9`
+- `minLetters`：参与判断的最少英文字母数量，默认 `8`
+
+**执行逻辑：**
+1. inputText 为 null 时视为空字符串
+2. 只统计英文字母 `A-Z` 和 `a-z`，忽略数字、空格和标点
+3. 如果英文字母总数小于 `minLetters`，不进行处理
+4. 计算大写英文字母数量 / 全部英文字母数量
+5. 如果比例小于 `uppercaseRatioThreshold`，保持原文不变
+6. 如果比例大于等于 `uppercaseRatioThreshold`，将文本转换为 sentence case
+7. sentence case 转换逻辑为：整体转小写，再将文本开头以及 `.`, `?`, `!` 后的第一个英文字母转为大写
+8. tokensBefore / tokensAfter 使用 `TokenCounter.count()` 统计真实 BPE token
+
+**Changes 消息：**
+- 转换时：`[caseNormalizer] 检测到明显全大写输入，已转换为 sentence case`
+- 参数记录：`[caseNormalizer] uppercaseRatioThreshold=0.9, minLetters=8`
+- 未转换时：`[caseNormalizer] 未检测到明显全大写输入，无需处理`
+- 输入为空时：`[caseNormalizer] 输入为空，无需处理`
+
+**Scope boundary:**
+- 只处理明显全大写 prompt 的大小写规范化
+- 不删除词，归 FillerRemovalRule 或未来相关规则
+- 不压缩短语，归 SemanticCompressorRule
+- 不处理空格和空行，归 StructureMinimizerRule
+- 不处理标点，归 PunctuationNormalizerRule
+- 不删除重复句，归 DuplicateSentenceRemoverRule
+- 不处理句内重复短语，未来归 DuplicatePhraseReducerRule
+- 不处理格式要求，归 FormatControlRule 或未来 OutputFormatDeduplicatorRule
+
+**已知局限：**
+- 第一版仍可能把全大写文本中的专有名词改成小写，例如 `JAVA` → `java`
+- 不会智能保护 OpenAI、JavaScript、GitHub、REST API、JSON、SQL 等专有名词或缩写
+- 不保护代码块、inline code、JSON、Markdown 表格和引号内容
+- 不处理普通混合大小写文本
+- 不适合创意写作或强调性全大写文本
+
+**验证用例：**
+- 输入：`"PLEASE EXPLAIN HOW ARRAYS WORK. GIVE ONE EXAMPLE."`
+- 期望输出：`"Please explain how arrays work. Give one example."`
+- 期望改动：
+  - `"[caseNormalizer] 检测到明显全大写输入，已转换为 sentence case"`
+  - `"[caseNormalizer] uppercaseRatioThreshold=0.9, minLetters=8"`
+
+**不触发用例：**
+- 输入：`"Explain REST API and JSON parsing."`
+- 期望输出：`"Explain REST API and JSON parsing."`
+- 原因：不是明显全大写输入
+
+**执行顺序：**
+当前注册顺序为：`FillerRemovalRule → CaseNormalizerRule → TaskAnalyzerRule`。先删除社交填充语，再规范明显全大写输入，最后进行任务类型识别。
+
+---
+
+### 2.3 TaskAnalyzerRule
 🔧 已实现但有已知局限（基于关键词匹配，非 ML 分类器）
 
 **支持的任务类型及关键词**（`TaskAnalyzerRule.java`，按优先级顺序）：
@@ -294,7 +357,7 @@ actually
 
 ---
 
-### 2.3 SemanticCompressorRule
+### 2.4 SemanticCompressorRule
 ✅ 已完成并测试（代码注释标注为"real algorithm"）
 
 **参数**：`compressionLevel`（int，0–100，默认 50）
@@ -363,7 +426,7 @@ actually
 
 ---
 
-### 2.4 StructureMinimizerRule
+### 2.5 StructureMinimizerRule
 ✅ 已实现（real algorithm）
 
 **四步清理逻辑**（`StructureMinimizerRule.java`，按实际执行顺序）：
@@ -399,7 +462,123 @@ actually
 
 ---
 
-### 2.5 PunctuationNormalizerRule
+### 2.6 DuplicateSentenceRemoverRule
+✅ 已完成并测试
+
+**功能说明：**
+删除 prompt 中完全重复的完整句子，减少重复表达造成的 token 浪费，同时保留第一次出现的句子。
+
+**参数：**
+- `caseInsensitive`：是否忽略大小写判断重复，默认 true
+- `keepFirst`：是否保留第一次出现的句子，默认 true
+
+**执行逻辑：**
+1. inputText 为 null 时视为空字符串
+2. 使用简单英文句子切分规则识别句子，句末标点包括 `.`, `?`, `!`
+3. 对每个句子生成 normalized sentence，用于重复判断
+4. normalize 过程包括 trim、折叠多余空白、去掉句尾 `.`, `?`, `!`，并在 caseInsensitive=true 时转小写
+5. 使用 LinkedHashSet 按顺序记录已经出现过的 normalized sentence
+6. 第一次出现的句子保留，后续重复句删除
+7. 输出时保留第一次出现句子的原始文本
+8. tokensBefore / tokensAfter 使用 `TokenCounter.count()` 统计真实 BPE token
+
+**Changes 消息：**
+- 删除重复句时：`[duplicateSentenceRemover] 删除重复句: "Explain arrays."`
+- 删除完成后：`[duplicateSentenceRemover] 共删除 N 个重复句`
+- 未检测到重复时：`[duplicateSentenceRemover] 未检测到重复句`
+- 输入为空时：`[duplicateSentenceRemover] 输入为空，无需处理`
+
+**Scope boundary:**
+- 只删除完整重复句子
+- 不处理句内重复短语，未来归 DuplicatePhraseReducerRule
+- 不处理语义相似但文字不同的句子
+- 不处理语义重复的输出约束，未来归 ConstraintDeduplicatorRule
+- 不处理空格和空行，归 StructureMinimizerRule
+- 不处理格式要求，归 FormatControlRule 或 OutputFormatDeduplicatorRule
+- 不做摘要
+
+**已知局限：**
+- 第一版只处理完全重复句，不处理近似重复句
+- 简单句子切分可能被缩写、URL、版本号或代码片段干扰
+- 不保护代码块、JSON、Markdown 表格和引号内容
+- 可能无法识别改写后的重复意图，例如 “Explain arrays.” 和 “Please explain arrays.”
+
+**验证用例：**
+- 输入：`"Explain arrays. Explain arrays. Give one example."`
+- 期望输出：`"Explain arrays. Give one example."`
+- 期望改动：
+  - `"[duplicateSentenceRemover] 删除重复句: \"Explain arrays.\""`
+  - `"[duplicateSentenceRemover] 共删除 1 个重复句"`
+
+**执行顺序：**
+当前注册顺序为：`StructureMinimizerRule → DuplicateSentenceRemoverRule → PunctuationNormalizerRule`。先清理空格和结构，再判断重复句，可以提高重复检测稳定性。
+
+---
+
+### 2.7 DuplicatePhraseReducerRule
+✅ 已完成并测试
+
+**功能说明：**
+删除同一句内部连续重复出现的词或短语，减少重复 token。第一版只处理连续重复的 unigram、bigram 和 trigram，不进行语义相似判断。
+
+**参数：**
+- `maxPhraseLength`：最大检测短语长度，默认 `3`；第一版限制在 1–3
+- `caseInsensitive`：是否忽略大小写判断重复，默认 true
+
+**执行逻辑：**
+1. inputText 为 null 时视为空字符串
+2. 对句子内部按空白切分 token
+3. 比较时对 token 做 normalize：去掉前后常见标点，并在 caseInsensitive=true 时转小写
+4. 输出时保留第一次出现片段的原始文本
+5. 从 `maxPhraseLength` 到 1 递减检测连续重复 n-gram
+6. 若检测到连续重复片段，只保留第一次出现，删除第二次连续重复片段
+7. 支持常见连续重复词，例如 `simple simple`
+8. 支持连续重复短语，例如 `step by step step by step`
+9. tokensBefore / tokensAfter 使用 `TokenCounter.count()` 统计真实 BPE token
+
+**Changes 消息：**
+- 删除重复短语时：`[duplicatePhraseReducer] 删除重复短语: "step by step"`
+- 删除完成后：`[duplicatePhraseReducer] 共删除 N 个重复短语`
+- 未检测到重复时：`[duplicatePhraseReducer] 未检测到连续重复短语`
+- 输入为空时：`[duplicatePhraseReducer] 输入为空，无需处理`
+
+**Scope boundary:**
+- 只处理同一句内部连续重复词或短语
+- 不处理完整重复句，归 DuplicateSentenceRemoverRule
+- 不处理非连续重复
+- 不处理语义相似但文字不同的短语
+- 不处理语义重复的输出约束，未来归 ConstraintDeduplicatorRule
+- 不处理格式要求去重，未来归 OutputFormatDeduplicatorRule
+- 不处理空格和空行，归 StructureMinimizerRule
+- 不处理标点规范化，归 PunctuationNormalizerRule
+- 不处理冗长短语等价替换，归 SemanticCompressorRule
+- 不做摘要
+
+**已知局限：**
+- 第一版只处理连续重复短语，不处理非连续重复
+- 第一版不判断语义相似关系
+- 可能误删强调性重复，例如 `very very important`
+- 简单 token 切分可能被复杂标点、代码片段、URL 或 Markdown 结构干扰
+- 不保护代码块、inline code、JSON、Markdown 表格和引号内容
+- 前端 Before/After diff 高亮在重复短语场景下可能只高亮部分删除内容，后续需要单独升级 diff visualization
+
+**验证用例：**
+- 输入：`"Explain this step by step step by step."`
+- 期望输出：`"Explain this step by step."`
+- 期望改动：
+  - `"[duplicatePhraseReducer] 删除重复短语: \"step by step\""`
+  - `"[duplicatePhraseReducer] 共删除 1 个重复短语"`
+
+**另一个验证用例：**
+- 输入：`"Please explain explain arrays."`
+- 期望输出：`"Please explain arrays."`
+
+**执行顺序：**
+当前注册顺序为：`DuplicateSentenceRemoverRule → DuplicatePhraseReducerRule → PunctuationNormalizerRule`。先删除完整重复句，再删除句内连续重复短语，最后规范标点。
+
+---
+
+### 2.8 PunctuationNormalizerRule
 ✅ 已完成并测试
 
 **无参数**
@@ -432,7 +611,7 @@ actually
 
 ---
 
-### 2.6 NumberNormalizerRule
+### 2.9 NumberNormalizerRule
 ✅ 已完成并测试
 
 **无参数**
@@ -509,7 +688,7 @@ actually
 - 不按 token 截断
 - 不总结内容
 - 不判断句子重要性
-- 不删除重复句，未来归 DuplicateSentenceRemoverRule
+- 不删除重复句，归 DuplicateSentenceRemoverRule
 
 **已知局限：**
 - 第一版只保留前 N 句，不判断句子重要性
@@ -539,11 +718,11 @@ actually
 - 截断时：`[lengthControl] 截断至 N 词 (原 M 词)`
 - 无需截断：`[lengthControl] 词数 M ≤ maxWords N，无需截断`
 
-**v3.1 更新**：截断阈值改用 `TokenCounter.wordCount()` 判断，
+**v1.5.0 更新**：截断阈值改用 `TokenCounter.wordCount()` 判断，
 与 BPE token 数解耦（maxWords 参数语义本就是词数）。`tokensBefore` /
 `tokensAfter` 仍用 `count()` 返回真实 BPE 数值供前端显示。
 
-**v3.2 更新**：`LengthControlRule` 保留为最终 maxWords 硬兜底规则。它不负责按句子数量裁剪；句子数量控制由 `SentenceBudgetRule` 负责。推荐执行顺序是：`SentenceBudgetRule → LengthControlRule`。
+**v1.5.1 更新**：`LengthControlRule` 保留为最终 maxWords 硬兜底规则。它不负责按句子数量裁剪；句子数量控制由 `SentenceBudgetRule` 负责。推荐执行顺序是：`SentenceBudgetRule → LengthControlRule`。
 
 **Scope boundary:**
 - 只负责按词数预算做最终硬截断
@@ -785,15 +964,21 @@ Content-Type: application/json
 ```json
 [
   { "id": "fillerRemoval",      "name": "Filler Removal",       "level": "Level 1", "description": "Removes greetings, polite openers, mid-text fillers, and closing remarks" },
+  { "id": "caseNormalizer",     "name": "Case Normalizer",      "level": "Level 1", "description": "Normalizes clearly all-uppercase prompts into sentence case" },
   { "id": "taskAnalyzer",       "name": "Task Analyzer",        "level": "Level 1", "description": "Classifies task type and complexity, appends metadata tag" },
   { "id": "semanticCompressor", "name": "Semantic Compressor",  "level": "Level 1", "description": "Replaces verbose phrases with concise equivalents" },
   { "id": "structureMinimizer", "name": "Structure Minimizer",  "level": "Level 1", "description": "Removes redundant whitespace and normalises text structure" },
+  { "id": "duplicateSentenceRemover", "name": "Duplicate Sentence Remover", "level": "Level 1", "description": "Removes fully duplicated sentences from the prompt" },
+  { "id": "duplicatePhraseReducer", "name": "Duplicate Phrase Reducer", "level": "Level 1", "description": "Removes consecutive duplicated words or short phrases" },
+  { "id": "punctuationNormalizer", "name": "Punctuation Normalizer", "level": "Level 1", "description": "Removes repeated punctuation and normalises ellipses" },
+  { "id": "numberNormalizer", "name": "Number Normalizer", "level": "Level 1", "description": "Converts written English numbers to Arabic numerals" },
+  { "id": "sentenceBudget",    "name": "Sentence Budget",       "level": "Level 2", "description": "Limits prompt length by sentence count before word truncation" },
   { "id": "lengthControl",      "name": "Length Control",       "level": "Level 2", "description": "Truncates text that exceeds the max-words budget" },
   { "id": "formatControl",      "name": "Format Control",       "level": "Level 2", "description": "Converts verbose formatting instructions to compact symbols" }
 ]
 ```
 
-**用途**：前端可用此接口动态渲染规则配置面板（当前前端硬编码了 8 条规则的 HTML，未实际调用此接口）
+**用途**：前端可用此接口动态渲染规则配置面板（当前前端硬编码了 12 条规则的 HTML，未实际调用此接口）
 
 ---
 
@@ -1048,7 +1233,7 @@ optimizationScore = (efficiencyAfter - efficiencyBefore) / efficiencyBefore × 1
 ### 优先级高
 
 **OpenAI API 接入 — AI Generate 按钮**
-- ✅ 已完成（v2.1）
+- ✅ 已完成（v1.4.0）
 - `AiPromptGenerator.generate()` 调用 OpenAI gpt-4o-mini，生成英文 prompt，覆盖 5 种任务类型 × 3 种 verbosity
 - AI Generate 按钮已激活，含 confirm 确认弹窗（`"Generate a prompt using AI? This may take a few seconds."`）
 - 详见 [4.2 AI 生成](#42-ai-生成aiprompteenerator)
@@ -1056,7 +1241,7 @@ optimizationScore = (efficiencyAfter - efficiencyBefore) / efficiencyBefore × 1
 ### 优先级中
 
 **真实 BPE Tokenizer**
-- ✅ 已完成（v3.1）
+- ✅ 已完成（v1.5.0）
 - jtokkit 1.1.0（OpenAI tiktoken Java 移植），`o200k_base` 编码器，与 gpt-4o-mini 对齐
 - 新增 `wordCount()` 供逻辑判断，`count()` 用于前端显示，双语义干净分离
 
@@ -1085,4 +1270,4 @@ optimizationScore = (efficiencyAfter - efficiencyBefore) / efficiencyBefore × 1
 
 ---
 
-*最后更新：2026/4/25 · 维护人：Andy*
+*最后更新：2026/5/1 · 维护人：Andy*

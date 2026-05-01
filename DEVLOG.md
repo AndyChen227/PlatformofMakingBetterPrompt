@@ -14,16 +14,16 @@
 
 （每次更新都要更新这一栏）
 
-- 当前版本：v3.2
-- 当前阶段：SentenceBudgetRule 已上线，Level 2 新增句子数量控制；LengthControlRule 保留为最终 maxWords 兜底规则
-- 已完成模块数：11/11（Level 1 + Level 2 + Quality Check + AI Generate + Sentence Budget）
-- 下一步：实现 DuplicateSentenceRemoverRule 或 CaseNormalizerRule
+- 当前版本：v1.5.4
+- 当前阶段：DuplicatePhraseReducerRule 已上线，Level 1 新增句内连续重复短语删除能力；LengthControlRule 保留为最终 maxWords 兜底规则
+- 已完成模块数：14/14（Level 1 + Level 2 + Quality Check + AI Generate + Sentence Budget + Duplicate Sentence Remover + Case Normalizer + Duplicate Phrase Reducer）
+- 下一步：OutputFormatDeduplicatorRule 或 CodeBlockProtectorRule
 
 ---
 
 ## 项目里程碑
 
-### ✅ v1.0 — 框架搭建（2026/3/25）
+### ✅ v1.0.0 — 框架搭建（2026/3/25）
 
 产出：
 - 完整 Spring Boot 项目结构
@@ -41,7 +41,7 @@
 
 ---
 
-### ✅ v1.0 — 真实算法实现（2026/3/26）
+### ✅ v1.0.0 — 真实算法实现（2026/3/26）
 
 产出：
 - InputCleanerRule：aggressiveness 参数真实生效
@@ -60,7 +60,7 @@
 
 ---
 
-### ✅ v1.0 — Prompt Generator（2026/3/27）
+### ✅ v1.1.0 — Prompt Generator（2026/3/27）
 
 产出：
 - TemplatePromptGenerator：45+模板，覆盖5种任务x3种废话程度
@@ -73,7 +73,7 @@
 
 ---
 
-### ✅ v1.0（tag v1.0.4） — UI 重构（2026/3/31）
+### ✅ v1.2.0（tag v1.0.4） — UI 重构（2026/3/31）
 
 产出：
 - 经典 Google Material Design 风格
@@ -87,7 +87,7 @@
 
 ---
 
-### ✅ v2.0 — Quality Check 功能（2026/4/4）
+### ✅ v1.3.0 — Quality Check 功能（2026/4/4）
 
 产出：
 - `POST /api/compare` 接口
@@ -100,7 +100,7 @@
 
 ---
 
-### ✅ v2.1 — AI Generate 功能上线（2026/4/7）
+### ✅ v1.4.0 — AI Generate 功能上线（2026/4/7）
 
 产出：
 - `AiPromptGenerator`：接入 OpenAI gpt-4o-mini，实现 `generate(taskType, verbosity)` 方法
@@ -115,7 +115,7 @@
 
 ---
 
-### ✅ v3.0 — Punctuation Normalizer + Number Normalizer（2026/4/15）
+### ✅ v1.4.1–v1.4.2 — Punctuation Normalizer + Number Normalizer（2026/4/15）
 
 产出：
 - `PunctuationNormalizerRule`：三步正则实现
@@ -132,7 +132,7 @@
 
 ---
 
-### ✅ v3.0.1 — 规则合并：FillerRemovalRule（2026/4/20）
+### ✅ v1.4.3 — 规则合并：FillerRemovalRule（2026/4/20）
 
 产出：
 - 新建 FillerRemovalRule（Level 1），合并原 InputCleanerRule（Level 1）和
@@ -149,7 +149,7 @@
 
 ---
 
-### ✅ v3.1 — 真实 BPE Tokenizer 接入 + MOCK 标注清理（2026/4/25）
+### ✅ v1.5.0 — 真实 BPE Tokenizer 接入 + MOCK 标注清理（2026/4/25）
 
 产出：
 - `TokenCounter` 重写：接入 jtokkit 1.1.0（OpenAI tiktoken 的 Java 移植版），
@@ -171,13 +171,13 @@
 - 清理全部残留 `[MOCK]` 标注：`LengthControlRule`、`FormatControlRule` 类头注释
   改为 "Real Implementation"，change 消息统一用规则 ID 前缀（`[lengthControl]`、
   `[formatControl]`）；FEATURES.md 同步清理 13 处 MOCK 标记
-- 文档版本号体系统一至 v3.x（对齐 git tag 历史 v1.0.4 / v3.0）
+- 文档版本号体系统一至标准三段式 major.minor.patch（git tag 历史 v1.0.4 / v3.0 保留）
 
 状态：BPE token 计数全链路上线，"逻辑用词数 + 显示用 BPE"语义干净分离
 
 ---
 
-### ✅ v3.2 — SentenceBudgetRule 上线（2026/4/27）
+### ✅ v1.5.1 — SentenceBudgetRule 上线（2026/4/27）
 
 产出：
 - 新增 `SentenceBudgetRule`（Level 2），通过 `maxSentences` 参数控制最多保留句子数
@@ -194,12 +194,88 @@
 
 ---
 
+### ✅ v1.5.2 — DuplicateSentenceRemoverRule 上线（2026/4/30）
+
+产出：
+- 新增 `DuplicateSentenceRemoverRule`（Level 1），用于删除 prompt 中完全重复的完整句子
+- 默认忽略大小写进行重复判断（`caseInsensitive=true`）
+- 默认保留第一次出现的句子（`keepFirst=true`）
+- 使用简单英文句子切分规则，句末标点包括 `.`, `?`, `!`
+- normalize 过程包括 trim、折叠多余空白、去除句尾标点、按配置转小写
+- 使用 `LinkedHashSet` 保持原始句子顺序并检测重复
+- `RuleRegistryConfig` 中 Level 1 执行顺序更新为：`StructureMinimizerRule → DuplicateSentenceRemoverRule → PunctuationNormalizerRule`
+- 前端同步新增 `duplicateSentenceRemover` 配置、`RULE_ORDER`、`RULE_LEVEL`、`RULE_INFO`
+- `index.html` 新增 Duplicate Sentence Remover 规则卡片
+- Level 1 UI 规则数量从 6 rules 更新为 7 rules
+
+验证：
+- 输入：`Explain arrays. Explain arrays. Give one example.`
+- 输出：`Explain arrays. Give one example.`
+- `/api/rules` 可返回 `duplicateSentenceRemover`
+- Page 1 / Page 2 / Page 3 均可正常显示该 rule
+
+状态：DuplicateSentenceRemoverRule 全链路上线
+
+---
+
+### ✅ v1.5.3 — CaseNormalizerRule 上线（2026/4/30）
+
+产出：
+- 新增 `CaseNormalizerRule`（Level 1），用于保守修复明显全大写 prompt
+- 默认 `uppercaseRatioThreshold=0.9`，只有大写英文字母比例足够高时才触发
+- 默认 `minLetters=8`，避免短缩写如 SQL / API 被误处理
+- 只统计英文字母，忽略数字、空格和标点
+- 转换逻辑为 sentence case：整体转小写，再将文本开头和 `.`, `?`, `!` 后的第一个英文字母转为大写
+- `RuleRegistryConfig` 中 Level 1 执行顺序更新为：`FillerRemovalRule → CaseNormalizerRule → TaskAnalyzerRule`
+- 前端同步新增 `caseNormalizer` 配置、`RULE_ORDER`、`RULE_LEVEL`、`RULE_INFO`
+- `index.html` 新增 Case Normalizer 规则卡片
+- Level 1 UI 规则数量从 7 rules 更新为 8 rules
+
+验证：
+- 输入：`PLEASE EXPLAIN HOW ARRAYS WORK. GIVE ONE EXAMPLE.`
+- 输出：`Please explain how arrays work. Give one example.`
+- 普通混合大小写输入如 `Explain REST API and JSON parsing.` 不会被处理
+- `/api/rules` 可返回 `caseNormalizer`
+- Page 1 / Page 2 / Page 3 均可正常显示该 rule
+
+状态：CaseNormalizerRule 全链路上线
+
+---
+
+### ✅ v1.5.4 — DuplicatePhraseReducerRule 上线（2026/4/30）
+
+产出：
+- 新增 `DuplicatePhraseReducerRule`（Level 1），用于删除同一句内部连续重复出现的词或短语
+- 默认 `maxPhraseLength=3`，第一版仅检测 unigram、bigram、trigram
+- 默认 `caseInsensitive=true`，比较时忽略大小写，输出时保留第一次出现片段的原始文本
+- 只处理连续重复片段，不处理非连续重复或语义相似短语
+- 支持例子：`simple simple` → `simple`
+- 支持例子：`step by step step by step` → `step by step`
+- `RuleRegistryConfig` 中 Level 1 执行顺序更新为：`DuplicateSentenceRemoverRule → DuplicatePhraseReducerRule → PunctuationNormalizerRule`
+- 前端同步新增 `duplicatePhraseReducer` 配置、`RULE_ORDER`、`RULE_LEVEL`、`RULE_INFO`
+- `index.html` 新增 Duplicate Phrase Reducer 规则卡片
+- Level 1 UI 规则数量从 8 rules 更新为 9 rules
+
+验证：
+- 输入：`Explain this step by step step by step.`
+- 输出：`Explain this step by step.`
+- `/api/rules` 可返回 `duplicatePhraseReducer`
+- Page 1 / Page 2 / Page 3 均可正常显示该 rule
+
+已知显示问题：
+- 当前前端 Before/After diff 对重复短语删除的高亮可能不够完整，例如可能只高亮部分重复词
+- 该问题属于前端 diff visualization 问题，不影响后端 Rule 输出正确性
+
+状态：DuplicatePhraseReducerRule 全链路上线
+
+---
+
 ## 待完成功能
 
 | 功能 | 优先级 | 说明 |
 |------|--------|------|
-| DuplicateSentenceRemoverRule | 高 | 删除完整重复句，减少重复 token，建议作为 v3.2.1 下一步 |
-| CaseNormalizerRule | 中 | 修复异常大小写，提升后续关键词匹配稳定性 |
+| OutputFormatDeduplicatorRule | 中 | 去除重复输出格式要求，和 FormatControlRule 形成互补 |
+| CodeBlockProtectorRule | 中 | 保护代码块和 inline code，避免后续规则误改代码内容 |
 | Level 3 上下文优化 | 中 | 历史裁剪、摘要记忆、相关性过滤 |
 | Level 4 系统级优化 | 低 | 缓存、模型分流、任务拆分 |
 | Level 5 高级优化 | 低 | 长期研究方向 |
@@ -224,7 +300,10 @@
 | 2026/4/25 | 在 FEATURES.md 中以 Scope boundary 段落明确 FillerRemoval / SemanticCompressor / FormatControl 三者的职责边界 | 防止未来新增词条时归属不清。统一判定原则:能直接删除的归 Filler,只能压缩的归 Compressor,改变输出形式的归 FormatControl |
 | 2026/4/25 | TokenCounter 选 jtokkit 而非自实现 BPE | jtokkit 是 OpenAI tiktoken 官方词表的 Java 移植，o200k_base 与项目实际调用的 gpt-4o-mini 完全对齐；纯 Java 无 native 依赖，零集成成本；自实现 BPE 需复刻整个词表与合并规则，无价值 |
 | 2026/4/27 | 保留 LengthControlRule，并新增 SentenceBudgetRule | SentenceBudgetRule 按句子数量做较自然的结构裁剪；LengthControlRule 继续作为最终 maxWords 硬兜底，两者控制单位不同，不构成功能重叠 |
-| 2026/4/25 | 文档版本号体系统一至 v3.x | 开发过程中用 v1.0–v1.8 做内部迭代标记，git tag 实际只打了 v1.0.4 和 v3.0；内部版本号与 tag 不对齐会造成混淆。统一规则：v1.0–v1.3 → v1.0（tag v1.0.4），v1.4 → v2.0，v1.5 → v2.1，v1.6 → v3.0（tag v3.0），v1.7 → v3.0.1，v1.8 → v3.1 |
+| 2026/4/30 | 先实现 DuplicateSentenceRemoverRule，而不是 CaseNormalizerRule | 完整重复句删除更直接服务 token optimization，独立性强、风险低、演示效果明显；CaseNormalizerRule 更偏输入规范化，可放到后续版本 |
+| 2026/4/30 | CaseNormalizerRule 采用 0.9 大写比例阈值 | 大小写规范化容易误伤专有名词和缩写，因此第一版只处理明显全大写输入，使用更保守的 0.9 阈值降低误改风险 |
+| 2026/4/30 | DuplicatePhraseReducerRule 第一版只处理连续重复短语 | 为避免误删用户真实意图，第一版仅处理 exact adjacent duplicate unigram/bigram/trigram，不做语义相似判断；前端 diff 高亮问题后续作为独立 UI 优化处理 |
+| 2026/5/1 | 文档版本号体系统一至标准三段式 major.minor.patch | major 留给架构级新维度（Level 3 = v2.0.0，Level 4/5 = v3.0.0）；minor 留给独立新功能模块（Generator / UI 重构 / Quality Check / AI Generate / BPE Tokenizer）；patch 留给单条规则上线。git tag 历史（v1.0.4 / v3.0）保留，文档归文档、tag 归 tag。 |
 
 ---
 
@@ -234,13 +313,13 @@
 |------|------|------|------|
 | 2026/3/25 | 阻塞 | Claude Code 生成文件路径不在 IntelliJ 项目目录 | ✅ 已解决：在项目目录内启动 Claude Code |
 | 2026/3/31 | 阻塞 | style.css 写入失败（文件被 IntelliJ 锁定） | ✅ 已解决：停止项目运行后重试 |
-| 2026/3/31 | 风险 | Token 计数用空格分词，与真实 BPE 有偏差 | ✅ 已解决：v3.1 接入 jtokkit (o200k_base) |
+| 2026/3/31 | 风险 | Token 计数用空格分词，与真实 BPE 有偏差 | ✅ 已解决：v1.5.0 接入 jtokkit (o200k_base) |
 
 ---
 
 ## 注释规范
 
-从 v1.1 起，所有 Java 文件必须包含以下注释：
+从 v1.0.0 起，所有 Java 文件必须包含以下注释：
 
 ### 类级注释模板
 
@@ -278,9 +357,9 @@
 
 ## 下一步行动
 
-1. 启动 Level 3 上下文优化设计（历史裁剪、摘要记忆、相关性过滤）
-2. 更新本日志
+1. 评估 OutputFormatDeduplicatorRule 与 CodeBlockProtectorRule 的优先级
+2. 启动下一条 Level 1 规则设计
 
 ---
 
-*最后更新：2026/4/25 · 维护人：Andy*
+*最后更新：2026/5/1 · 维护人：Andy*

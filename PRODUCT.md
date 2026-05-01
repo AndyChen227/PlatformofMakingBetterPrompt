@@ -12,9 +12,9 @@
 | 空白清理 | Structure Minimizer | 删除多余的空行和空格 | 输入优化 | 第一阶段 | 已完成 |
 | 标点规范化 | Punctuation Normalizer | 删除重复标点符号，例如 "!!!" → "!"，规范省略号用法 | 输入优化 | 第一阶段 | 已完成 |
 | 数字标准化 | Number Normalizer | 把英文数字和百分比表达转换成阿拉伯数字，例如 "two hundred" → "200" | 输入优化 | 第一阶段 | 已完成 |
-| 大小写规范化 | Case Normalizer | 修复 prompt 中异常的大小写表达，使文本更稳定、更易读 | 输入优化 | 第一阶段 | 未完成 |
-| 重复句删除 | Duplicate Sentence Remover | 删除 prompt 中重复出现的完整句子，减少重复表达造成的 token 浪费 | 输入优化 | 第一阶段 | 未完成 |
-| 重复短语压缩 | Duplicate Phrase Reducer | 删除同一句内部重复出现的词组或短语 | 输入优化 | 第一阶段 | 未完成 |
+| 大小写规范化 | Case Normalizer | 保守修复明显全大写 prompt，使文本更稳定、更易读 | 输入优化 | 第一阶段 | 已完成 |
+| 重复句删除 | Duplicate Sentence Remover | 删除 prompt 中重复出现的完整句子，减少重复表达造成的 token 浪费 | 输入优化 | 第一阶段 | 已完成 |
+| 重复短语压缩 | Duplicate Phrase Reducer | 删除同一句内部重复出现的词组或短语 | 输入优化 | 第一阶段 | 已完成 |
 | 代码块保护 | Code Block Protector | 保护 Markdown 代码块或 inline code，避免后续规则误改代码内容 | 输入优化 | 第一阶段 | 未完成 |
 | 引用文本保护 | Quoted Text Protector | 保护引号内文本，避免用户明确引用的内容被误改 | 输入优化 | 第一阶段 | 未完成 |
 

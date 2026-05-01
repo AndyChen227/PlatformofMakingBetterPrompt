@@ -1,6 +1,9 @@
 package com.betterprompt.betterpromptbyandyy2.config;
 
 import com.betterprompt.betterpromptbyandyy2.optimizer.Rule;
+import com.betterprompt.betterpromptbyandyy2.optimizer.level1.CaseNormalizerRule;
+import com.betterprompt.betterpromptbyandyy2.optimizer.level1.DuplicatePhraseReducerRule;
+import com.betterprompt.betterpromptbyandyy2.optimizer.level1.DuplicateSentenceRemoverRule;
 import com.betterprompt.betterpromptbyandyy2.optimizer.level1.FillerRemovalRule;
 import com.betterprompt.betterpromptbyandyy2.optimizer.level1.SemanticCompressorRule;
 import com.betterprompt.betterpromptbyandyy2.optimizer.level1.NumberNormalizerRule;
@@ -45,9 +48,12 @@ public class RuleRegistryConfig {
         return List.of(
             // ── Level 1: Input Processing ──────────────────────────────
             new FillerRemovalRule(),      // Strip greetings, polite openers, mid-text fillers, and closing remarks
+            new CaseNormalizerRule(),     // Normalize clearly all-uppercase prompts into sentence case
             new TaskAnalyzerRule(),       // Classify task type & complexity
             new SemanticCompressorRule(), // Replace verbose phrases
             new StructureMinimizerRule(),       // Collapse whitespace & blank lines
+            new DuplicateSentenceRemoverRule(), // Remove fully duplicated complete sentences
+            new DuplicatePhraseReducerRule(),   // Remove consecutive duplicated words or short phrases
             new PunctuationNormalizerRule(),    // 压缩重复标点，规范省略号
             new NumberNormalizerRule(),         // 英文数字词 → 阿拉伯数字
 

@@ -151,7 +151,7 @@
       <div class="level-block" style="margin-top:20px;">
         <div class="level-block-header">
           <span class="badge badge-blue-lg">Level 1 · Input Processing</span>
-          <span class="level-count">6 rules</span>
+          <span class="level-count">9 rules</span>
         </div>
 
         <!-- FillerRemoval -->
@@ -181,6 +181,24 @@
                 <span>+ all openers + fillers + 4 closings</span>
               </div>
             </div>
+          </div>
+        </div>
+
+        <!-- CaseNormalizer -->
+        <div class="rule-card level1" id="rcard-caseNormalizer">
+          <div class="rule-left-bar bar-blue"></div>
+          <div class="rule-body">
+            <div class="rule-row1">
+              <div class="rule-row1-left">
+                <label class="toggle">
+                  <input type="checkbox" class="rule-toggle" data-rule="caseNormalizer" checked />
+                  <span class="toggle-track"></span>
+                </label>
+                <span class="rule-name">Case Normalizer</span>
+              </div>
+              <button class="info-btn" onclick="showModal('caseNormalizer')" title="Learn more">ℹ</button>
+            </div>
+            <div class="rule-desc">Normalize clearly all-uppercase prompts into sentence case</div>
           </div>
         </div>
 
@@ -247,6 +265,42 @@
               <button class="info-btn" onclick="showModal('structureMinimizer')" title="Learn more">ℹ</button>
             </div>
             <div class="rule-desc">Collapses redundant whitespace &amp; blank lines</div>
+          </div>
+        </div>
+
+        <!-- DuplicateSentenceRemover -->
+        <div class="rule-card level1" id="rcard-duplicateSentenceRemover">
+          <div class="rule-left-bar bar-blue"></div>
+          <div class="rule-body">
+            <div class="rule-row1">
+              <div class="rule-row1-left">
+                <label class="toggle">
+                  <input type="checkbox" class="rule-toggle" data-rule="duplicateSentenceRemover" checked />
+                  <span class="toggle-track"></span>
+                </label>
+                <span class="rule-name">Duplicate Sentence Remover</span>
+              </div>
+              <button class="info-btn" onclick="showModal('duplicateSentenceRemover')" title="Learn more">ℹ</button>
+            </div>
+            <div class="rule-desc">Remove fully duplicated sentences while keeping the first occurrence</div>
+          </div>
+        </div>
+
+        <!-- DuplicatePhraseReducer -->
+        <div class="rule-card level1" id="rcard-duplicatePhraseReducer">
+          <div class="rule-left-bar bar-blue"></div>
+          <div class="rule-body">
+            <div class="rule-row1">
+              <div class="rule-row1-left">
+                <label class="toggle">
+                  <input type="checkbox" class="rule-toggle" data-rule="duplicatePhraseReducer" checked />
+                  <span class="toggle-track"></span>
+                </label>
+                <span class="rule-name">Duplicate Phrase Reducer</span>
+              </div>
+              <button class="info-btn" onclick="showModal('duplicatePhraseReducer')" title="Learn more">ℹ</button>
+            </div>
+            <div class="rule-desc">Remove consecutive duplicated words or short phrases</div>
           </div>
         </div>
 

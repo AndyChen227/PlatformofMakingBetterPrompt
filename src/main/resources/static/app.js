@@ -12,9 +12,12 @@ const state = {
   prompt: '',
   rules: {
     fillerRemoval:          { enabled: true,  params: { aggressiveness: 50 } },
+    caseNormalizer:         { enabled: true,  params: { uppercaseRatioThreshold: 0.9, minLetters: 8 } },
     taskAnalyzer:           { enabled: true,  params: {} },
     semanticCompressor:     { enabled: true,  params: { compressionLevel: 50 } },
     structureMinimizer:     { enabled: true,  params: {} },
+    duplicateSentenceRemover: { enabled: true, params: { caseInsensitive: true, keepFirst: true } },
+    duplicatePhraseReducer: { enabled: true, params: { maxPhraseLength: 3, caseInsensitive: true } },
     punctuationNormalizer:  { enabled: true,  params: {} },
     numberNormalizer:       { enabled: true,  params: {} },
     sentenceBudget:         { enabled: true,  params: { maxSentences: 3 } },
@@ -29,9 +32,12 @@ const state = {
 // Execution order — must match RuleRegistryConfig.java
 const RULE_ORDER = [
   'fillerRemoval',
+  'caseNormalizer',
   'taskAnalyzer',
   'semanticCompressor',
   'structureMinimizer',
+  'duplicateSentenceRemover',
+  'duplicatePhraseReducer',
   'punctuationNormalizer',
   'numberNormalizer',
   'sentenceBudget',
@@ -40,8 +46,9 @@ const RULE_ORDER = [
 ];
 
 const RULE_LEVEL = {
-  fillerRemoval: 'l1', taskAnalyzer: 'l1',
+  fillerRemoval: 'l1', caseNormalizer: 'l1', taskAnalyzer: 'l1',
   semanticCompressor: 'l1', structureMinimizer: 'l1',
+  duplicateSentenceRemover: 'l1', duplicatePhraseReducer: 'l1',
   punctuationNormalizer: 'l1', numberNormalizer: 'l1',
   sentenceBudget: 'l2', lengthControl: 'l2', formatControl: 'l2',
 };
@@ -69,6 +76,25 @@ const RULE_INFO = {
       'Multilingual support: Chinese (你好/麻烦你), French (Bonjour/Pourriez-vous)',
       'Context-aware mode: preserve filler in customer-service or formal-writing prompts',
       'Semantic similarity to catch paraphrases of closing remarks not in the fixed list',
+    ],
+  },
+  caseNormalizer: {
+    name: 'Case Normalizer',
+    level: 'Level 1',
+    levelClass: 'badge-blue',
+    what: 'Conservatively normalizes clearly all-uppercase prompts into sentence case. The first version only triggers when the ratio of uppercase English letters is high enough, so mixed-case prompts such as OpenAI, JavaScript, REST API, and JSON are not aggressively rewritten.',
+    hasParams: true,
+    params: [
+      { tier: 'Uppercase Ratio', cls: 'badge-blue', text: 'Default 0.9. The rule only triggers when uppercase English letters make up at least this ratio of all English letters.' },
+      { tier: 'Min Letters', cls: 'badge-green', text: 'Default 8. Short texts are ignored to avoid changing abbreviations such as SQL or API.' },
+    ],
+    exBefore: 'PLEASE EXPLAIN HOW ARRAYS WORK. GIVE ONE EXAMPLE.',
+    exAfter: 'Please explain how arrays work. Give one example.',
+    future: [
+      'Protect proper nouns such as OpenAI, GitHub, JavaScript, and TypeScript',
+      'Protect acronyms such as SQL, API, JSON, HTML, CSS, HTTP, URL, and GPT',
+      'Skip code blocks, inline code, quoted text, JSON, and markdown tables',
+      'Support smarter title case or domain-specific casing rules',
     ],
   },
   taskAnalyzer: {
@@ -116,6 +142,40 @@ const RULE_INFO = {
       'Detect and remove redundant markdown headers (## Intro / ## Overview)',
       'Remove duplicate paragraphs or near-duplicate sentences',
       'Normalize Unicode whitespace (non-breaking spaces, zero-width characters)',
+    ],
+  },
+  duplicateSentenceRemover: {
+    name: 'Duplicate Sentence Remover',
+    level: 'Level 1',
+    levelClass: 'badge-blue',
+    what: 'Removes fully duplicated sentences from the prompt while keeping the first occurrence. This reduces repeated token usage without changing the intended meaning. The first version only handles exact duplicates after simple normalization.',
+    hasParams: false,
+    exBefore: 'Explain arrays. Explain arrays. Give one example.',
+    exAfter: 'Explain arrays. Give one example.',
+    future: [
+      'Near-duplicate sentence detection using similarity scoring',
+      'Better sentence boundary detection for abbreviations, URLs, and code snippets',
+      'Protection for code blocks, quoted text, JSON, and markdown tables',
+      'Optional mode to keep the last occurrence instead of the first',
+    ],
+  },
+  duplicatePhraseReducer: {
+    name: 'Duplicate Phrase Reducer',
+    level: 'Level 1',
+    levelClass: 'badge-blue',
+    what: 'Removes consecutive duplicated words or short phrases inside a sentence. The first version only handles exact adjacent duplicates up to trigrams, such as "simple simple" or "step by step step by step", without attempting semantic similarity.',
+    hasParams: true,
+    params: [
+      { tier: 'Max Phrase Length', cls: 'badge-blue', text: 'Default 3. Detects repeated unigrams, bigrams, and trigrams only.' },
+      { tier: 'Case Insensitive', cls: 'badge-green', text: 'Default true. Matching ignores letter case, but output keeps the first occurrence as originally written.' },
+    ],
+    exBefore: 'Explain this step by step step by step.',
+    exAfter: 'Explain this step by step.',
+    future: [
+      'Better tokenization that preserves punctuation more accurately',
+      'Protection for code blocks, inline code, quoted text, JSON, and markdown tables',
+      'Near-duplicate phrase detection using similarity scoring',
+      'Configurable protection for emphasis phrases such as "very very important"',
     ],
   },
   punctuationNormalizer: {

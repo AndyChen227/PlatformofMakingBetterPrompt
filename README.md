@@ -82,14 +82,17 @@ The built-in generator produces "dirty" prompts — intentionally verbose, polit
 | # | Rule | Level | Configurable Parameter |
 |---|------|-------|----------------------|
 | 1 | Filler Removal | Level 1 | `aggressiveness` (LOW / MID / HIGH) |
-| 2 | Task Analyzer | Level 1 | — |
-| 3 | Semantic Compressor | Level 1 | `compressionLevel` (LOW / MID / HIGH) |
-| 4 | Structure Minimizer | Level 1 | — |
-| 5 | Punctuation Normalizer | Level 1 | — |
-| 6 | Number Normalizer | Level 1 | — |
-| 7 | Sentence Budget | Level 2 | `maxSentences` (integer) |
-| 8 | Length Control | Level 2 | `maxWords` (integer) |
-| 9 | Format Control | Level 2 | — |
+| 2 | Case Normalizer | Level 1 | `uppercaseRatioThreshold`, `minLetters` |
+| 3 | Task Analyzer | Level 1 | — |
+| 4 | Semantic Compressor | Level 1 | `compressionLevel` (LOW / MID / HIGH) |
+| 5 | Structure Minimizer | Level 1 | — |
+| 6 | Duplicate Sentence Remover | Level 1 | — |
+| 7 | Duplicate Phrase Reducer | Level 1 | `maxPhraseLength`, `caseInsensitive` |
+| 8 | Punctuation Normalizer | Level 1 | — |
+| 9 | Number Normalizer | Level 1 | — |
+| 10 | Sentence Budget | Level 2 | `maxSentences` (integer) |
+| 11 | Length Control | Level 2 | `maxWords` (integer) |
+| 12 | Format Control | Level 2 | — |
 
 ### Pipeline Visualization
 
@@ -143,10 +146,13 @@ Every optimization run produces a full audit trail. The frontend renders each ru
 │             │                                                      │
 │   ┌─────────┴──────────────────────────────────────────────────┐  │
 │   │  Level 1                          Level 2                  │  │
-│   │  ├── FillerRemovalRule            ├── LengthControlRule    │  │
+│   │  ├── FillerRemovalRule            ├── SentenceBudgetRule   │  │
+│   │  ├── CaseNormalizerRule           ├── LengthControlRule    │  │
 │   │  ├── TaskAnalyzerRule             └── FormatControlRule    │  │
 │   │  ├── SemanticCompressorRule                                │  │
 │   │  ├── StructureMinimizerRule                                │  │
+│   │  ├── DuplicateSentenceRemoverRule                          │  │
+│   │  ├── DuplicatePhraseReducerRule                            │  │
 │   │  ├── PunctuationNormalizerRule                             │  │
 │   │  └── NumberNormalizerRule                                  │  │
 │   └────────────────────────────────────────────────────────────┘  │
@@ -219,11 +225,17 @@ BetterPromptByAndyy2.0/
     │   │       │
     │   │       ├── level1/                         # Input Processing Rules
     │   │       │   ├── FillerRemovalRule.java      # Remove greetings, openers, mid-text fillers, and closing remarks
+    │   │       │   ├── CaseNormalizerRule.java     # Conservative all-uppercase prompt normalization
     │   │       │   ├── TaskAnalyzerRule.java       # Classify task type and complexity
     │   │       │   ├── SemanticCompressorRule.java # Verbose-phrase → concise substitutions
-    │   │       │   └── StructureMinimizerRule.java # Whitespace and blank-line normalization
+    │   │       │   ├── StructureMinimizerRule.java # Whitespace and blank-line normalization
+    │   │       │   ├── DuplicateSentenceRemoverRule.java # Remove fully duplicated complete sentences
+    │   │       │   ├── DuplicatePhraseReducerRule.java # Remove consecutive duplicated short phrases
+    │   │       │   ├── PunctuationNormalizerRule.java # Repeated punctuation normalization
+    │   │       │   └── NumberNormalizerRule.java   # Written numbers → Arabic numerals
     │   │       │
     │   │       └── level2/                         # Output Control Rules
+    │   │           ├── SentenceBudgetRule.java     # Sentence-count limit
     │   │           ├── LengthControlRule.java      # Hard word-count truncation
     │   │           └── FormatControlRule.java      # Verbose format instructions → symbols
     │   │
@@ -267,7 +279,15 @@ The change log records every specific removal, e.g.:
 
 ---
 
-#### 2. Task Analyzer
+#### 2. Case Normalizer
+
+Conservatively normalizes clearly all-uppercase prompts into sentence case before task analysis. It only triggers when the uppercase-letter ratio is high enough, with a default threshold of `0.9`, to avoid rewriting normal mixed-case prompts.
+
+Current execution order: `FillerRemovalRule → CaseNormalizerRule → TaskAnalyzerRule`.
+
+---
+
+#### 3. Task Analyzer
 
 Classifies the prompt by task type and complexity, then appends a metadata tag that downstream rules (and in future, the LLM itself) can use.
 
@@ -293,7 +313,7 @@ Output appends: `[Task: CODING | Complexity: HIGH]`
 
 ---
 
-#### 3. Semantic Compressor
+#### 4. Semantic Compressor
 
 Replaces verbose multi-word phrases with shorter semantic equivalents. Uses a tiered substitution table controlled by the `compressionLevel` parameter.
 
@@ -320,7 +340,7 @@ Replaces verbose multi-word phrases with shorter semantic equivalents. Uses a ti
 
 ---
 
-#### 4. Structure Minimizer
+#### 5. Structure Minimizer
 
 Normalizes whitespace and blank lines — purely structural, no semantic content is changed.
 
@@ -333,7 +353,23 @@ Four operations applied in sequence:
 
 ---
 
-#### 5. Punctuation Normalizer
+#### 6. Duplicate Sentence Remover
+
+Removes fully duplicated sentences while keeping the first occurrence. This reduces repeated token usage without changing the user's intended meaning. The first implementation handles exact duplicates after simple normalization.
+
+Current execution order: `StructureMinimizerRule → DuplicateSentenceRemoverRule → PunctuationNormalizerRule`.
+
+---
+
+#### 7. Duplicate Phrase Reducer
+
+Removes consecutive duplicated words or short phrases inside a sentence. The first implementation handles exact adjacent duplicates up to trigrams, such as `simple simple` or `step by step step by step`, without attempting semantic similarity.
+
+Current execution order: `DuplicateSentenceRemoverRule → DuplicatePhraseReducerRule → PunctuationNormalizerRule`.
+
+---
+
+#### 8. Punctuation Normalizer
 
 Compresses repeated punctuation and normalises ellipses. Three operations applied in sequence:
 
@@ -345,7 +381,7 @@ Example: `"Is this right?? Sure!! Let me think...."` → `"Is this right? Sure! 
 
 ---
 
-#### 6. Number Normalizer
+#### 9. Number Normalizer
 
 Converts written English numbers and percentages to their Arabic numeral equivalents using a full place-value parser.
 
@@ -368,19 +404,19 @@ These rules apply after the input has been cleaned and compressed. They enforce 
 
 ---
 
-#### 7. Sentence Budget
+#### 10. Sentence Budget
 
 Limits the prompt by maximum sentence count before word-budget truncation. If the prompt exceeds `maxSentences` (default: 3), it keeps the first N complete sentences and appends an ellipsis. This rule runs before Length Control.
 
 ---
 
-#### 8. Length Control
+#### 11. Length Control
 
 Acts as the final hard word-budget guard. If the prompt still exceeds `maxWords` (default: 50) after earlier optimization rules, it truncates the text at a word boundary and appends `...`.
 
 ---
 
-#### 9. Format Control
+#### 12. Format Control
 
 Replaces verbose, human-readable formatting instructions with their compact symbol equivalents.
 
@@ -554,6 +590,12 @@ Returns metadata for all registered rules in pipeline order.
     "description": "Removes greetings, polite openers, mid-text fillers, and closing remarks"
   },
   {
+    "id": "caseNormalizer",
+    "name": "Case Normalizer",
+    "level": "Level 1",
+    "description": "Normalizes clearly all-uppercase prompts into sentence case"
+  },
+  {
     "id": "taskAnalyzer",
     "name": "Task Analyzer",
     "level": "Level 1",
@@ -570,6 +612,36 @@ Returns metadata for all registered rules in pipeline order.
     "name": "Structure Minimizer",
     "level": "Level 1",
     "description": "Normalizes whitespace and blank lines"
+  },
+  {
+    "id": "duplicateSentenceRemover",
+    "name": "Duplicate Sentence Remover",
+    "level": "Level 1",
+    "description": "Removes fully duplicated sentences from the prompt"
+  },
+  {
+    "id": "duplicatePhraseReducer",
+    "name": "Duplicate Phrase Reducer",
+    "level": "Level 1",
+    "description": "Removes consecutive duplicated words or short phrases"
+  },
+  {
+    "id": "punctuationNormalizer",
+    "name": "Punctuation Normalizer",
+    "level": "Level 1",
+    "description": "Removes repeated punctuation and normalises ellipses"
+  },
+  {
+    "id": "numberNormalizer",
+    "name": "Number Normalizer",
+    "level": "Level 1",
+    "description": "Converts written English numbers to Arabic numerals"
+  },
+  {
+    "id": "sentenceBudget",
+    "name": "Sentence Budget",
+    "level": "Level 2",
+    "description": "Limits prompt length by sentence count before word truncation"
   },
   {
     "id": "lengthControl",
@@ -674,15 +746,18 @@ Open `http://localhost:8080` in your browser.
 
 ## Roadmap
 
-- [x] v1.0 — Spring Boot project scaffold, REST API skeleton, Level 1 & 2 rules, Prompt Generator, three-page SPA (tag: v1.0.4)
-- [x] v2.0 — Quality Check feature (OpenAI-powered side-by-side comparison)
-- [x] v2.1 — AI Generate (OpenAI-powered prompt generation)
-- [x] v3.0 — Punctuation Normalizer + Number Normalizer (tag: v3.0)
-- [x] v3.0.1 — Merged FillerRemovalRule (Input Cleaner + Redundancy Suppressor)
-- [x] v3.1 — Real BPE tokenizer via jtokkit (o200k_base, aligned with gpt-4o-mini); MOCK label cleanup; version-numbering alignment
-- [x] v3.2 — SentenceBudgetRule (sentence-count limit before word-budget truncation)
-- [ ] v4.0 — Level 3: context optimization (deduplication, reference compression)
-- [ ] v5.0 — Level 4 & 5: system-level optimization (system prompt factoring, conversation compression)
+- [x] v1.0.0–v1.2.0 — Spring Boot project scaffold, REST API skeleton, Level 1 & 2 rules, Prompt Generator, three-page SPA (tag: v1.0.4)
+- [x] v1.3.0 — Quality Check feature (OpenAI-powered side-by-side comparison)
+- [x] v1.4.0 — AI Generate (OpenAI-powered prompt generation)
+- [x] v1.4.1–v1.4.2 — Punctuation Normalizer + Number Normalizer (tag: v3.0)
+- [x] v1.4.3 — Merged FillerRemovalRule (Input Cleaner + Redundancy Suppressor)
+- [x] v1.5.0 — Real BPE tokenizer via jtokkit (o200k_base, aligned with gpt-4o-mini); MOCK label cleanup; version-numbering alignment
+- [x] v1.5.1 — SentenceBudgetRule (sentence-count limit before word-budget truncation)
+- [x] v1.5.2 — DuplicateSentenceRemoverRule (remove fully duplicated sentences)
+- [x] v1.5.3 — CaseNormalizerRule (conservative all-uppercase prompt normalization)
+- [x] v1.5.4 — DuplicatePhraseReducerRule (remove consecutive duplicated short phrases)
+- [ ] v2.0.0 — Level 3: context optimization (deduplication, reference compression)
+- [ ] v3.0.0 — Level 4 & 5: system-level optimization (system prompt factoring, conversation compression)
 
 ---
 
@@ -704,10 +779,10 @@ Keyword matching is deterministic, zero-latency, fully debuggable, and requires 
 
 The optimizer's core value proposition is "reduce token usage" — which
 demands that token counts match what the LLM actually sees. Whitespace-split
-word count was the v1.0 placeholder, and it was systematically wrong:
+word count was the v1.0.0 placeholder, and it was systematically wrong:
 punctuation was undercounted (`Hello world!` reports 2 words but 3 BPE tokens),
 sub-word splits were invisible, and the resulting compression ratios drifted
-from reality the longer the prompt got. v3.1 replaces this with
+from reality the longer the prompt got. v1.5.0 replaces this with
 [jtokkit](https://github.com/knuddels/jtokkit), a Java port of OpenAI's
 tiktoken, using the `o200k_base` encoder — the same vocabulary used by
 `gpt-4o-mini`, which this project already calls for AI Generate and Quality Check.
@@ -726,4 +801,4 @@ Exposing raw numbers to a UI creates a usability problem: a user setting `aggres
 
 ---
 
-*Built by Andy · 2026 · Last updated 2026/04/25*
+*Built by Andy · 2026 · Last updated 2026/05/01*
