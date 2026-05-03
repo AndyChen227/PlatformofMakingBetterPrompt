@@ -4,10 +4,10 @@ import com.betterprompt.betterpromptbyandyy2.model.RuleConfig;
 import com.betterprompt.betterpromptbyandyy2.model.StepResult;
 import com.betterprompt.betterpromptbyandyy2.optimizer.Rule;
 import com.betterprompt.betterpromptbyandyy2.optimizer.TokenCounter;
+import com.betterprompt.betterpromptbyandyy2.optimizer.util.ProtectedTextProcessor;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 
 public class CaseNormalizerRule implements Rule {
 
@@ -40,8 +40,9 @@ public class CaseNormalizerRule implements Rule {
                 : config.getIntParam("minLetters", DEFAULT_MIN_LETTERS);
 
         String result = inputText;
-        if (shouldNormalize(inputText, uppercaseRatioThreshold, minLetters)) {
-            result = toSentenceCase(inputText);
+        String unprotectedText = extractUnprotectedText(inputText);
+        if (shouldNormalize(unprotectedText, uppercaseRatioThreshold, minLetters)) {
+            result = toSentenceCaseOutsideProtectedSegments(inputText);
             changes.add("[caseNormalizer] 检测到明显全大写输入，已转换为 sentence case");
             changes.add("[caseNormalizer] uppercaseRatioThreshold=" + uppercaseRatioThreshold
                     + ", minLetters=" + minLetters);
@@ -106,22 +107,56 @@ public class CaseNormalizerRule implements Rule {
         return uppercaseRatio >= threshold;
     }
 
-    private String toSentenceCase(String text) {
-        char[] chars = text.toLowerCase(Locale.ENGLISH).toCharArray();
-        boolean capitalizeNextLetter = true;
+    private String extractUnprotectedText(String inputText) {
+        StringBuilder result = new StringBuilder(inputText.length());
+        for (ProtectedTextProcessor.Segment segment : ProtectedTextProcessor.splitIntoSegments(inputText)) {
+            if (!segment.isProtectedSegment()) {
+                result.append(segment.getText());
+            }
+        }
+        return result.toString();
+    }
 
-        for (int i = 0; i < chars.length; i++) {
-            char c = chars[i];
-            if ((c >= 'a' && c <= 'z') && capitalizeNextLetter) {
-                chars[i] = Character.toUpperCase(c);
-                capitalizeNextLetter = false;
-            } else if (c >= 'a' && c <= 'z') {
-                capitalizeNextLetter = false;
-            } else if (c == '.' || c == '?' || c == '!') {
-                capitalizeNextLetter = true;
+    private String toSentenceCaseOutsideProtectedSegments(String inputText) {
+        StringBuilder result = new StringBuilder(inputText.length());
+        SentenceCaseState state = new SentenceCaseState();
+
+        for (ProtectedTextProcessor.Segment segment : ProtectedTextProcessor.splitIntoSegments(inputText)) {
+            if (segment.isProtectedSegment()) {
+                result.append(segment.getText());
+            } else {
+                appendSentenceCase(segment.getText(), result, state);
             }
         }
 
-        return new String(chars);
+        return result.toString();
+    }
+
+    private void appendSentenceCase(String text, StringBuilder result, SentenceCaseState state) {
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            if (c >= 'A' && c <= 'Z') {
+                result.append(state.capitalizeNextLetter ? c : Character.toLowerCase(c));
+                state.capitalizeNextLetter = false;
+            } else if (c >= 'a' && c <= 'z') {
+                result.append(state.capitalizeNextLetter ? Character.toUpperCase(c) : c);
+                state.capitalizeNextLetter = false;
+            } else {
+                result.append(c);
+                if (c == '.' || c == '?' || c == '!') {
+                    state.capitalizeNextLetter = true;
+                }
+            }
+        }
+    }
+
+    private String toSentenceCase(String text) {
+        StringBuilder result = new StringBuilder(text.length());
+        appendSentenceCase(text, result, new SentenceCaseState());
+        return result.toString();
+    }
+
+    private static final class SentenceCaseState {
+        private boolean capitalizeNextLetter = true;
     }
 }

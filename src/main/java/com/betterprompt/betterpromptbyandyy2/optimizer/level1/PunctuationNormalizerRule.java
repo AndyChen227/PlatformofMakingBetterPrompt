@@ -4,6 +4,7 @@ import com.betterprompt.betterpromptbyandyy2.model.RuleConfig;
 import com.betterprompt.betterpromptbyandyy2.model.StepResult;
 import com.betterprompt.betterpromptbyandyy2.optimizer.Rule;
 import com.betterprompt.betterpromptbyandyy2.optimizer.TokenCounter;
+import com.betterprompt.betterpromptbyandyy2.optimizer.util.ProtectedTextProcessor;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -39,19 +40,22 @@ public class PunctuationNormalizerRule implements Rule {
         String result = inputText;
         List<String> changes = new ArrayList<>();
 
-        String afterExcl = result.replaceAll("!{2,}", "!");
+        String afterExcl = ProtectedTextProcessor.transformOutsideMarkdownCode(result,
+                text -> text.replaceAll("!{2,}", "!"));
         if (!afterExcl.equals(result)) {
             changes.add("[punctuationNormalizer] 压缩重复感叹号: '!!' → '!'");
             result = afterExcl;
         }
 
-        String afterQuestion = result.replaceAll("\\?{2,}", "?");
+        String afterQuestion = ProtectedTextProcessor.transformOutsideMarkdownCode(result,
+                text -> text.replaceAll("\\?{2,}", "?"));
         if (!afterQuestion.equals(result)) {
             changes.add("[punctuationNormalizer] 压缩重复问号: '??' → '?'");
             result = afterQuestion;
         }
 
-        String afterEllipsis = result.replaceAll("\\.{4,}", "...");
+        String afterEllipsis = ProtectedTextProcessor.transformOutsideMarkdownCode(result,
+                text -> text.replaceAll("\\.{4,}", "..."));
         if (!afterEllipsis.equals(result)) {
             changes.add("[punctuationNormalizer] 规范省略号: '....' → '...'");
             result = afterEllipsis;

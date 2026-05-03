@@ -14,10 +14,10 @@
 
 （每次更新都要更新这一栏）
 
-- 当前版本：v1.5.4
-- 当前阶段：DuplicatePhraseReducerRule 已上线，Level 1 新增句内连续重复短语删除能力；LengthControlRule 保留为最终 maxWords 兜底规则
-- 已完成模块数：14/14（Level 1 + Level 2 + Quality Check + AI Generate + Sentence Budget + Duplicate Sentence Remover + Case Normalizer + Duplicate Phrase Reducer）
-- 下一步：OutputFormatDeduplicatorRule 或 CodeBlockProtectorRule
+- 当前版本：v1.5.5
+- 当前阶段：Protected Text Safety Layer 已加入；高风险文本转换规则现在会跳过 Markdown fenced code blocks 和 inline code
+- 已完成模块数：14/14（Level 1 + Level 2 + Quality Check + AI Generate + Sentence Budget + Duplicate Sentence Remover + Case Normalizer + Duplicate Phrase Reducer + Protected Text Safety Layer）
+- 下一步：Structure/Sentence safety for StructureMinimizerRule and DuplicateSentenceRemoverRule
 
 ---
 
@@ -270,12 +270,48 @@
 
 ---
 
+### ✅ v1.5.5 — Protected Text Safety Layer（2026/5/3）
+
+产出：
+- 新增 `ProtectedTextProcessor` 工具类，位置：`src/main/java/com/betterprompt/betterpromptbyandyy2/optimizer/util/ProtectedTextProcessor.java`
+- 当前保护范围：
+  - Markdown fenced code blocks（triple backticks）
+  - inline code（single backticks）
+- 已接入以下高风险文本转换规则：
+  - `PunctuationNormalizerRule`
+  - `CaseNormalizerRule`
+  - `NumberNormalizerRule`
+  - `SemanticCompressorRule`
+  - `DuplicatePhraseReducerRule`
+- 这些规则现在只转换 protected regions 之外的普通自然语言文本
+- protected code regions 保持 byte-for-byte unchanged
+- 新增单元测试：
+  - `PunctuationNormalizerRuleTest`
+  - `CaseNormalizerRuleTest`
+  - `NumberNormalizerRuleTest`
+  - `SemanticCompressorRuleTest`
+  - `DuplicatePhraseReducerRuleTest`
+
+本地测试说明：
+- `.\mvnw.cmd test` 未能在当前本地环境运行，因为 `JAVA_HOME` 未正确配置
+- 这是本地环境限制，不代表代码失败
+
+设计决策：
+- v1.5.5 采用共享 utility layer，而不是新增一个普通 pipeline rule
+- 原因：当前 `Rule` interface 只传递 `String input/output`，不携带 shared pipeline context，普通 Protector/Restorer rule 无法安全地跨规则保存 protected state
+- 未来如果引入 `PipelineContext`，可以考虑升级为 Protector/Restorer architecture
+
+状态：Protected Text Safety Layer 已接入五个高风险转换规则
+
+---
+
 ## 待完成功能
 
 | 功能 | 优先级 | 说明 |
 |------|--------|------|
 | OutputFormatDeduplicatorRule | 中 | 去除重复输出格式要求，和 FormatControlRule 形成互补 |
-| CodeBlockProtectorRule | 中 | 保护代码块和 inline code，避免后续规则误改代码内容 |
+| Structure/Sentence safety | 中 | 为 StructureMinimizerRule 和 DuplicateSentenceRemoverRule 补充 fenced code blocks / inline code 安全边界 |
+| CodeBlockProtectorRule 升级 | 中 | 当前已有 `ProtectedTextProcessor` 部分覆盖 fenced code blocks 和 inline code；后续可扩展 quoted text、JSON-like blocks、Markdown tables |
 | Level 3 上下文优化 | 中 | 历史裁剪、摘要记忆、相关性过滤 |
 | Level 4 系统级优化 | 低 | 缓存、模型分流、任务拆分 |
 | Level 5 高级优化 | 低 | 长期研究方向 |
@@ -304,6 +340,7 @@
 | 2026/4/30 | CaseNormalizerRule 采用 0.9 大写比例阈值 | 大小写规范化容易误伤专有名词和缩写，因此第一版只处理明显全大写输入，使用更保守的 0.9 阈值降低误改风险 |
 | 2026/4/30 | DuplicatePhraseReducerRule 第一版只处理连续重复短语 | 为避免误删用户真实意图，第一版仅处理 exact adjacent duplicate unigram/bigram/trigram，不做语义相似判断；前端 diff 高亮问题后续作为独立 UI 优化处理 |
 | 2026/5/1 | 文档版本号体系统一至标准三段式 major.minor.patch | major 留给架构级新维度（Level 3 = v2.0.0，Level 4/5 = v3.0.0）；minor 留给独立新功能模块（Generator / UI 重构 / Quality Check / AI Generate / BPE Tokenizer）；patch 留给单条规则上线。git tag 历史（v1.0.4 / v3.0）保留，文档归文档、tag 归 tag。 |
+| 2026/5/3 | Protected Text Safety Layer 采用共享工具类而不是普通 pipeline rule | 当前 Rule interface 只传递 String input/output，不携带 shared pipeline context；共享 `ProtectedTextProcessor` 可以让高风险规则在本地跳过 fenced code blocks 和 inline code。未来若引入 PipelineContext，可考虑 Protector/Restorer architecture。 |
 
 ---
 

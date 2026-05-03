@@ -4,6 +4,7 @@ import com.betterprompt.betterpromptbyandyy2.model.RuleConfig;
 import com.betterprompt.betterpromptbyandyy2.model.StepResult;
 import com.betterprompt.betterpromptbyandyy2.optimizer.Rule;
 import com.betterprompt.betterpromptbyandyy2.optimizer.TokenCounter;
+import com.betterprompt.betterpromptbyandyy2.optimizer.util.ProtectedTextProcessor;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -36,11 +37,18 @@ public class DuplicatePhraseReducerRule implements Rule {
         maxPhraseLength = Math.max(1, Math.min(MAX_SUPPORTED_PHRASE_LENGTH, maxPhraseLength));
         boolean caseInsensitive = getBooleanParam(config, "caseInsensitive", true);
 
-        ReductionResult reduction = reduceText(inputText, maxPhraseLength, caseInsensitive, changes);
-        String result = reduction.changed ? reduction.text : inputText;
+        final int[] removedCount = {0};
+        String result = ProtectedTextProcessor.transformOutsideMarkdownCode(
+                inputText,
+                normalText -> {
+                    ReductionResult reduction = reduceText(normalText, maxPhraseLength, caseInsensitive, changes);
+                    removedCount[0] += reduction.removedCount;
+                    return reduction.changed ? preserveBoundaryWhitespace(normalText, reduction.text) : normalText;
+                }
+        );
 
-        if (reduction.removedCount > 0) {
-            changes.add("[duplicatePhraseReducer] 共删除 " + reduction.removedCount + " 个重复短语");
+        if (removedCount[0] > 0) {
+            changes.add("[duplicatePhraseReducer] 共删除 " + removedCount[0] + " 个重复短语");
         } else {
             changes.add("[duplicatePhraseReducer] 未检测到连续重复短语");
         }
@@ -211,6 +219,20 @@ public class DuplicatePhraseReducerRule implements Rule {
             return bool;
         }
         return Boolean.parseBoolean(val.toString());
+    }
+
+    private String preserveBoundaryWhitespace(String originalText, String reducedText) {
+        int leadingEnd = 0;
+        while (leadingEnd < originalText.length() && Character.isWhitespace(originalText.charAt(leadingEnd))) {
+            leadingEnd++;
+        }
+
+        int trailingStart = originalText.length();
+        while (trailingStart > leadingEnd && Character.isWhitespace(originalText.charAt(trailingStart - 1))) {
+            trailingStart--;
+        }
+
+        return originalText.substring(0, leadingEnd) + reducedText + originalText.substring(trailingStart);
     }
 
     private StepResult buildStep(String inputText, String result, int tokensBefore, List<String> changes) {

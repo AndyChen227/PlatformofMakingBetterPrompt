@@ -1,6 +1,6 @@
 /**
  * BetterPrompt Token Optimizer
- * app.js — Pure vanilla JS, Google Material Design, 3-page SPA
+ * app.js — Pure vanilla JS, Google Material Design, 4-page SPA
  */
 'use strict';
 
@@ -101,10 +101,10 @@ const RULE_INFO = {
     name: 'Task Analyzer',
     level: 'Level 1',
     levelClass: 'badge-blue',
-    what: 'Analyzes the prompt to classify its task type (CODING, EXPLAIN, DEBUG, WRITING, COMPARE) and estimate complexity (LOW / MEDIUM / HIGH) based on word count. Results are appended as metadata tags to guide downstream rules.',
+    what: 'Classifies the prompt task type (CODING, EXPLAIN, DEBUG, WRITING, COMPARE) and estimates complexity (LOW / MEDIUM / HIGH) based on word count. It records the analysis result in the pipeline step changes for visibility/debugging. It does not modify the prompt text and does not append metadata tags.',
     hasParams: false,
     exBefore: 'Write a Python function that reverses a string.',
-    exAfter:  'Write a Python function that reverses a string. [Task: CODING | Complexity: LOW]',
+    exAfter:  'Write a Python function that reverses a string.',
     future: [
       'ML-based intent classifier trained on prompt datasets',
       'Complexity scoring model beyond word count (syntax depth, entity density)',

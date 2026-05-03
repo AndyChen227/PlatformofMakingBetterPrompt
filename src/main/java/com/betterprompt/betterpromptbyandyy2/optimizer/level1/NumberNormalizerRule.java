@@ -4,6 +4,7 @@ import com.betterprompt.betterpromptbyandyy2.model.RuleConfig;
 import com.betterprompt.betterpromptbyandyy2.model.StepResult;
 import com.betterprompt.betterpromptbyandyy2.optimizer.Rule;
 import com.betterprompt.betterpromptbyandyy2.optimizer.TokenCounter;
+import com.betterprompt.betterpromptbyandyy2.optimizer.util.ProtectedTextProcessor;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -68,10 +69,16 @@ public class NumberNormalizerRule implements Rule {
     public StepResult apply(String inputText, RuleConfig config) {
         if (inputText == null) inputText = "";
         int tokensBefore = TokenCounter.count(inputText);
-        String result = inputText;
         List<String> changes = new ArrayList<>();
-        result = replaceMatches(result, PERCENT_PATTERN, changes, true);
-        result = replaceMatches(result, NUMBER_PHRASE_PATTERN, changes, false);
+        String result = ProtectedTextProcessor.transformOutsideMarkdownCode(
+                inputText,
+                normalText -> {
+                    String processed = normalText;
+                    processed = replaceMatches(processed, PERCENT_PATTERN, changes, true);
+                    processed = replaceMatches(processed, NUMBER_PHRASE_PATTERN, changes, false);
+                    return processed;
+                }
+        );
         if (changes.isEmpty()) {
             changes.add("[numberNormalizer] 未检测到可转换的英文数字");
         }

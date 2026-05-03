@@ -207,7 +207,7 @@ BetterPromptByAndyy2.0/
     │   │   │   └── RuleRegistryConfig.java         # Rule registration & execution order (single source of truth)
     │   │   │
     │   │   ├── generator/
-    │   │   │   ├── AiPromptGenerator.java          # AI generator stub (Claude API, pending integration)
+    │   │   │   ├── AiPromptGenerator.java          # OpenAI gpt-4o-mini prompt generator
     │   │   │   ├── PromptGeneratorController.java  # GET /api/generator/prompt
     │   │   │   ├── PromptTemplate.java             # Value object for template metadata
     │   │   │   └── TemplatePromptGenerator.java    # 45 templates (5 types × 3 verbosity × 3 variants)
@@ -221,7 +221,9 @@ BetterPromptByAndyy2.0/
     │   │   └── optimizer/
     │   │       ├── Rule.java                       # Rule interface (Strategy pattern)
     │   │       ├── RuleEngine.java                 # Pipeline executor (Chain of Responsibility)
-    │   │       ├── TokenCounter.java               # Token counter (word-split approximation)
+    │   │       ├── TokenCounter.java               # jtokkit o200k_base BPE token counter
+    │   │       ├── util/
+    │   │       │   └── ProtectedTextProcessor.java # Protect fenced code blocks and inline code
     │   │       │
     │   │       ├── level1/                         # Input Processing Rules
     │   │       │   ├── FillerRemovalRule.java      # Remove greetings, openers, mid-text fillers, and closing remarks
@@ -240,7 +242,7 @@ BetterPromptByAndyy2.0/
     │   │           └── FormatControlRule.java      # Verbose format instructions → symbols
     │   │
     │   └── resources/
-    │       ├── application.properties              # Port, app name, Anthropic API config
+    │       ├── application.properties              # Port, app name, OpenAI API config
     │       └── static/
     │           ├── index.html                      # 3-page SPA shell
     │           ├── style.css                       # Material Design styles (pure CSS)
@@ -283,13 +285,15 @@ The change log records every specific removal, e.g.:
 
 Conservatively normalizes clearly all-uppercase prompts into sentence case before task analysis. It only triggers when the uppercase-letter ratio is high enough, with a default threshold of `0.9`, to avoid rewriting normal mixed-case prompts.
 
+Skips Markdown fenced code blocks and inline code through `ProtectedTextProcessor`.
+
 Current execution order: `FillerRemovalRule → CaseNormalizerRule → TaskAnalyzerRule`.
 
 ---
 
 #### 3. Task Analyzer
 
-Classifies the prompt by task type and complexity, then appends a metadata tag that downstream rules (and in future, the LLM itself) can use.
+Classifies the prompt by task type and complexity. The analysis is recorded in the step changes for visibility/debugging; the rule does not modify the prompt text and does not append metadata tags.
 
 **Task classification** — keyword matching in priority order:
 
@@ -309,13 +313,15 @@ Classifies the prompt by task type and complexity, then appends a metadata tag t
 | MEDIUM | 15–40 words |
 | HIGH | > 40 words |
 
-Output appends: `[Task: CODING | Complexity: HIGH]`
+Output text remains unchanged by this rule.
 
 ---
 
 #### 4. Semantic Compressor
 
 Replaces verbose multi-word phrases with shorter semantic equivalents. Uses a tiered substitution table controlled by the `compressionLevel` parameter.
+
+Skips Markdown fenced code blocks and inline code through `ProtectedTextProcessor`.
 
 | Tier | Range | Substitution pairs |
 |------|-------|--------------------|
@@ -365,6 +371,8 @@ Current execution order: `StructureMinimizerRule → DuplicateSentenceRemoverRul
 
 Removes consecutive duplicated words or short phrases inside a sentence. The first implementation handles exact adjacent duplicates up to trigrams, such as `simple simple` or `step by step step by step`, without attempting semantic similarity.
 
+Skips Markdown fenced code blocks and inline code through `ProtectedTextProcessor`.
+
 Current execution order: `DuplicateSentenceRemoverRule → DuplicatePhraseReducerRule → PunctuationNormalizerRule`.
 
 ---
@@ -378,6 +386,8 @@ Compresses repeated punctuation and normalises ellipses. Three operations applie
 3. Normalise four or more consecutive periods → standard ellipsis `...` (e.g. `....` → `...`)
 
 Example: `"Is this right?? Sure!! Let me think...."` → `"Is this right? Sure! Let me think..."`
+
+Skips Markdown fenced code blocks and inline code through `ProtectedTextProcessor`.
 
 ---
 
@@ -395,6 +405,14 @@ Two-phase processing (percent phrases first, then plain numbers):
 | `seventy five percentage` | `75%` |
 
 The parser supports ones (zero–nineteen), tens (twenty–ninety), and scale words (hundred, thousand, million) in arbitrary combination.
+
+Skips Markdown fenced code blocks and inline code through `ProtectedTextProcessor`.
+
+#### Protected Text Safety Layer
+
+`ProtectedTextProcessor` is a shared utility layer used by the high-risk text transformation rules above. It preserves Markdown fenced code blocks and inline code byte-for-byte while allowing normal natural-language text outside those regions to be optimized.
+
+Current scope: fenced code blocks using triple backticks and inline code wrapped in single backticks. Future work: quoted text, Markdown tables, JSON-like blocks outside fenced code, and custom delimiters.
 
 ---
 
@@ -494,22 +512,22 @@ Run the full optimization pipeline on a prompt.
       "ruleName": "Task Analyzer",
       "ruleLevel": "Level 1",
       "inputText": "write a Python function to sort a list. Thanks in advance!",
-      "outputText": "write a Python function to sort a list. Thanks in advance! [Task: CODING | Complexity: LOW]",
+      "outputText": "write a Python function to sort a list. Thanks in advance!",
       "tokensBefore": 12,
-      "tokensAfter": 17,
-      "tokensSaved": -5,
+      "tokensAfter": 12,
+      "tokensSaved": 0,
       "changes": ["Detected task type: CODING", "Detected complexity: LOW"],
       "status": "done"
     }
   ],
-  "finalPrompt": "Write a Python function to sort a list. [Task: CODING | Complexity: LOW]",
+  "finalPrompt": "Write a Python function to sort a list.",
   "tokenStats": {
     "original": 20,
     "final": 12,
     "compressionRate": 40.0,
     "byRule": {
       "Input Cleaner": 8,
-      "Task Analyzer": -5,
+        "Task Analyzer": 0,
       "Semantic Compressor": 2,
       "Structure Minimizer": 0,
       "Length Control": 0,
@@ -599,7 +617,7 @@ Returns metadata for all registered rules in pipeline order.
     "id": "taskAnalyzer",
     "name": "Task Analyzer",
     "level": "Level 1",
-    "description": "Classifies task type and complexity, appends metadata tag"
+    "description": "Classifies task type and complexity"
   },
   {
     "id": "semanticCompressor",
@@ -695,7 +713,7 @@ Generate a sample prompt for testing the optimizer.
 | Framework | Spring Boot 3.5 |
 | Build | Maven |
 | Frontend | HTML5, CSS3, JavaScript (no external libraries) |
-| AI API | Anthropic Claude (integration in progress) |
+| AI API | OpenAI gpt-4o-mini |
 | Token counting | jtokkit 1.1.0 (OpenAI tiktoken Java port, `o200k_base` encoder) |
 
 The frontend deliberately uses no third-party libraries. All UI components — cards, toggles, tier buttons, modals, the token bar chart — are implemented in vanilla JavaScript and CSS.
@@ -718,11 +736,11 @@ cd BetterPromptByAndyy2.0
 
 ### Configure (optional)
 
-To enable AI prompt generation, set your Anthropic API key in `src/main/resources/application.properties`:
+To enable AI prompt generation and Quality Check, set your OpenAI API key in `src/main/resources/application.properties`:
 
 ```properties
-anthropic.api.key=sk-ant-...
-anthropic.model=claude-opus-4-6
+openai.api.key=sk-...
+openai.model=gpt-4o-mini
 ```
 
 This is optional. The optimizer pipeline and template generator work fully without an API key.
@@ -756,6 +774,7 @@ Open `http://localhost:8080` in your browser.
 - [x] v1.5.2 — DuplicateSentenceRemoverRule (remove fully duplicated sentences)
 - [x] v1.5.3 — CaseNormalizerRule (conservative all-uppercase prompt normalization)
 - [x] v1.5.4 — DuplicatePhraseReducerRule (remove consecutive duplicated short phrases)
+- [x] v1.5.5 — Protected Text Safety Layer (partial Code Block Protector via `ProtectedTextProcessor`; high-risk rules skip fenced code blocks and inline code)
 - [ ] v2.0.0 — Level 3: context optimization (deduplication, reference compression)
 - [ ] v3.0.0 — Level 4 & 5: system-level optimization (system prompt factoring, conversation compression)
 
@@ -771,7 +790,7 @@ The practical payoff: when adding a new rule, only one file changes (`RuleRegist
 
 ### Why keyword matching for task classification instead of ML?
 
-A machine learning classifier for five task categories would require a labeled training set, model hosting, inference latency, and retraining infrastructure. For this project, the classification informs a metadata tag that helps humans (and eventually the LLM) understand what kind of prompt it is — it does not need to be perfect, it needs to be fast and transparent.
+A machine learning classifier for five task categories would require a labeled training set, model hosting, inference latency, and retraining infrastructure. For this project, the classification is recorded in the rule's step changes for visibility/debugging; it does not need to be perfect, it needs to be fast and transparent.
 
 Keyword matching is deterministic, zero-latency, fully debuggable, and requires no external dependencies. If the classification is wrong, the cause is immediately visible in the keyword list. An ML model would require explainability tooling to achieve the same level of transparency.
 
@@ -795,10 +814,16 @@ change with zero modifications to the 11 call sites. Rules that needed
 keeping logical decisions on word count while showing real BPE numbers
 in the UI.
 
+### Why a ProtectedTextProcessor utility instead of a visible rule?
+
+v1.5.5 protects Markdown fenced code blocks and inline code inside the high-risk transformation rules themselves. This is implemented as `ProtectedTextProcessor`, not as a separate frontend rule card or normal pipeline rule, because the current `Rule` interface only passes String input/output and does not carry shared pipeline context.
+
+The current scope is deliberately partial: fenced code blocks and inline code are protected, while quoted text, Markdown tables, JSON-like blocks outside fenced code, and custom delimiters remain future work. A future Protector/Restorer architecture could be considered if `PipelineContext` is introduced.
+
 ### Why LOW / MID / HIGH instead of exposing raw numeric parameters?
 
 Exposing raw numbers to a UI creates a usability problem: a user setting `aggressiveness=47` has no intuition for what that means. Mapping slider values to named tiers (LOW / MID / HIGH) gives each level a clear, documented meaning — users can predict the effect before running the pipeline. The underlying parameter is still a numeric range (0–100) passed through the API, so programmatic callers retain full control. The tier names are a presentation layer, not a constraint on the data model.
 
 ---
 
-*Built by Andy · 2026 · Last updated 2026/05/01*
+*Built by Andy · 2026 · Last updated 2026/05/03*

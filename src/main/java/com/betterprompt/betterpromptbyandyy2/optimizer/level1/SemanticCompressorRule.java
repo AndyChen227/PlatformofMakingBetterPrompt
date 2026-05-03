@@ -4,6 +4,7 @@ import com.betterprompt.betterpromptbyandyy2.model.RuleConfig;
 import com.betterprompt.betterpromptbyandyy2.model.StepResult;
 import com.betterprompt.betterpromptbyandyy2.optimizer.Rule;
 import com.betterprompt.betterpromptbyandyy2.optimizer.TokenCounter;
+import com.betterprompt.betterpromptbyandyy2.optimizer.util.ProtectedTextProcessor;
 
 import java.util.AbstractMap;
 import java.util.ArrayList;
@@ -139,19 +140,11 @@ public class SemanticCompressorRule implements Rule {
         if (!tier.equals("LOW"))  active.addAll(REPLACEMENTS_MEDIUM);
         if (tier.equals("HIGH"))  active.addAll(REPLACEMENTS_HIGH);
 
-        String result = inputText;
         List<String> changes = new ArrayList<>();
-
-        for (Map.Entry<String, String> e : active) {
-            String verbose    = e.getKey();
-            String compressed = e.getValue();
-            // Case-insensitive global replace; preserve surrounding context exactly
-            String replaced   = result.replaceAll("(?i)" + Pattern.quote(verbose), compressed);
-            if (!replaced.equals(result)) {
-                changes.add("[compressionLevel=" + tier + "] '" + verbose + "' → '" + compressed + "'");
-                result = replaced;
-            }
-        }
+        String result = ProtectedTextProcessor.transformOutsideMarkdownCode(
+                inputText,
+                normalText -> applyReplacements(normalText, active, changes, tier)
+        );
 
         if (changes.isEmpty()) {
             changes.add("[compressionLevel=" + tier + "] 未找到可替换的冗余词组");
@@ -173,5 +166,25 @@ public class SemanticCompressorRule implements Rule {
 
     private static Map.Entry<String, String> entry(String k, String v) {
         return new AbstractMap.SimpleImmutableEntry<>(k, v);
+    }
+
+    private String applyReplacements(
+            String text,
+            List<Map.Entry<String, String>> replacements,
+            List<String> changes,
+            String tier
+    ) {
+        String result = text;
+        for (Map.Entry<String, String> e : replacements) {
+            String verbose    = e.getKey();
+            String compressed = e.getValue();
+            // Case-insensitive global replace; preserve surrounding context exactly
+            String replaced   = result.replaceAll("(?i)" + Pattern.quote(verbose), compressed);
+            if (!replaced.equals(result)) {
+                changes.add("[compressionLevel=" + tier + "] '" + verbose + "' → '" + compressed + "'");
+                result = replaced;
+            }
+        }
+        return result;
     }
 }

@@ -1,4 +1,4 @@
-# BetterPrompt 功能清单 v1.5.4
+# BetterPrompt 功能清单 v1.5.5
 
 > 本文档根据实际代码生成，记录项目每个功能的实现状态、细节和验证方式。
 > 更新规则：每完成或修改一个功能，同步更新对应条目。
@@ -132,6 +132,42 @@
 - 若项目后续切换到 Claude (Anthropic)，将 `ENCODING_TYPE` 改为对应编码即可
 - 增加 batch 接口，一次 encode 多段文本以减少调用开销
 - 支持多模型 token 数对比（同时返回 GPT-4o 和 GPT-3.5 的估算）
+
+---
+
+### 1.5 Protected Text Safety Layer
+✅ 部分完成（v1.5.5）
+
+**实现位置：**
+- `src/main/java/com/betterprompt/betterpromptbyandyy2/optimizer/util/ProtectedTextProcessor.java`
+
+**当前保护范围：**
+- Markdown fenced code blocks（triple backticks）
+- inline code（single backticks）
+
+**当前接入规则：**
+- `PunctuationNormalizerRule`
+- `CaseNormalizerRule`
+- `NumberNormalizerRule`
+- `SemanticCompressorRule`
+- `DuplicatePhraseReducerRule`
+
+**行为说明：**
+- 上述五个高风险文本转换规则只处理 protected regions 之外的普通自然语言文本
+- fenced code blocks 和 inline code 会保持 byte-for-byte unchanged
+- 该能力是共享 utility layer，不是单独的前端规则卡片，也不是独立 pipeline rule
+
+**已知边界：**
+- 不保护 quoted text
+- 不保护未包在 fenced code block 中的 JSON-like blocks
+- 不保护 Markdown tables
+- 不支持 arbitrary custom delimiters
+
+**未来扩展：**
+- quoted text protection
+- JSON block / Markdown table protection
+- budget-aware protection
+- 若未来引入 `PipelineContext`，可评估 Protector/Restorer architecture
 
 ---
 
@@ -288,7 +324,8 @@ actually
 **已知局限：**
 - 第一版仍可能把全大写文本中的专有名词改成小写，例如 `JAVA` → `java`
 - 不会智能保护 OpenAI、JavaScript、GitHub、REST API、JSON、SQL 等专有名词或缩写
-- 不保护代码块、inline code、JSON、Markdown 表格和引号内容
+- 已保护 Markdown fenced code blocks 和 inline code
+- 仍不保护 quoted text、未 fenced 的 JSON-like blocks、Markdown tables 或 custom delimiters
 - 不处理普通混合大小写文本
 - 不适合创意写作或强调性全大写文本
 
@@ -330,30 +367,28 @@ actually
 - 15–40 词 → `MEDIUM`
 - > 40 词 → `HIGH`
 
-**分类结果追加格式**：
-```
-[Task: CODING | Complexity: HIGH]
-```
-追加到输入文本末尾（含前导空格），`tokensSaved` 为负数（因为追加了 token）
+**分类结果记录方式**：
+- 任务类型和复杂度只记录在 StepResult changes 中，便于可见性和调试
+- `outputText` 保持等于 `inputText`
+- 不追加 `[Task: ... | Complexity: ...]` 元数据标签
 
 **Changes 列表格式**：
 ```
 检测到任务类型: CODING（匹配关键词: 'write'）
 复杂度评估: LOW（词数: 7）
-已追加元数据标签: [Task: CODING | Complexity: LOW]
 ```
 若无匹配关键词：`检测到任务类型: GENERAL（无匹配关键词，使用默认值）`
 
 **已知局限**（代码注释）：
 - 关键词匹配精度有限（含 "write" 的 DEBUG prompt 可能被错误分类）
 - 复杂度仅用词数评估，不考虑词汇多样性、子任务数量等
-- 追加的标签目前对下游 Rule 不产生影响（下游 Rule 不读取任务类型）
+- 当前只记录分析结果，不修改 prompt 文本；下游 Rule 目前不读取任务类型
 - 不支持多标签分类（如 CODING + EXPLAIN 同时成立时）
 
 **验证用例**：
 - 输入：`"Write a Python function to sort a list."` （7 词）
-- 期望输出：`"Write a Python function to sort a list. [Task: CODING | Complexity: LOW]"`
-- 期望改动：`["检测到任务类型: CODING（匹配关键词: 'write'）", "复杂度评估: LOW（词数: 7）", "已追加元数据标签: [Task: CODING | Complexity: LOW]"]`
+- 期望输出：`"Write a Python function to sort a list."`
+- 期望改动：`["检测到任务类型: CODING（匹配关键词: 'write'）", "复杂度评估: LOW（词数: 7）"]`
 
 ---
 
@@ -417,7 +452,8 @@ actually
 
 **已知局限**（代码注释）：
 - 替换表固定，无法检测未列举的冗余表达
-- 不保护引号内字符串、代码块和专有名词
+- 已保护 Markdown fenced code blocks 和 inline code
+- 仍不保护 quoted strings、proper nouns、未 fenced 的 JSON-like blocks、Markdown tables 或 custom delimiters
 
 **验证用例**：
 - 输入：`"I need to write code in order to sort the array, due to the fact that it is slow."`（compressionLevel=50，MID）
@@ -559,7 +595,8 @@ actually
 - 第一版不判断语义相似关系
 - 可能误删强调性重复，例如 `very very important`
 - 简单 token 切分可能被复杂标点、代码片段、URL 或 Markdown 结构干扰
-- 不保护代码块、inline code、JSON、Markdown 表格和引号内容
+- 已保护 Markdown fenced code blocks 和 inline code
+- 仍不保护 quoted text、未 fenced 的 JSON-like blocks、Markdown tables 或 custom delimiters
 - 前端 Before/After diff 高亮在重复短语场景下可能只高亮部分删除内容，后续需要单独升级 diff visualization
 
 **验证用例：**
@@ -602,7 +639,8 @@ actually
 **已知局限**：
 - 不处理中文标点（！！！→！）
 - 不处理混合标点（!? 或 ?!）
-- 不保护代码块内的标点
+- 已保护 Markdown fenced code blocks 和 inline code 内的标点
+- 仍不保护 quoted text、未 fenced 的 JSON-like blocks、Markdown tables 或 custom delimiters
 
 **验证用例**：
 - 输入：`"Is this correct?? I'm sure!! Let me think...."`
@@ -645,7 +683,8 @@ actually
 **已知局限**：
 - 不支持序数词（first, second → 1st, 2nd）
 - 不支持小数（one point five → 1.5）
-- 不保护代码块、引号内内容
+- 已保护 Markdown fenced code blocks 和 inline code
+- 仍不保护 quoted text、未 fenced 的 JSON-like blocks、Markdown tables 或 custom delimiters
 
 **验证用例**：
 
@@ -965,7 +1004,7 @@ Content-Type: application/json
 [
   { "id": "fillerRemoval",      "name": "Filler Removal",       "level": "Level 1", "description": "Removes greetings, polite openers, mid-text fillers, and closing remarks" },
   { "id": "caseNormalizer",     "name": "Case Normalizer",      "level": "Level 1", "description": "Normalizes clearly all-uppercase prompts into sentence case" },
-  { "id": "taskAnalyzer",       "name": "Task Analyzer",        "level": "Level 1", "description": "Classifies task type and complexity, appends metadata tag" },
+  { "id": "taskAnalyzer",       "name": "Task Analyzer",        "level": "Level 1", "description": "Classifies task type and complexity" },
   { "id": "semanticCompressor", "name": "Semantic Compressor",  "level": "Level 1", "description": "Replaces verbose phrases with concise equivalents" },
   { "id": "structureMinimizer", "name": "Structure Minimizer",  "level": "Level 1", "description": "Removes redundant whitespace and normalises text structure" },
   { "id": "duplicateSentenceRemover", "name": "Duplicate Sentence Remover", "level": "Level 1", "description": "Removes fully duplicated sentences from the prompt" },
