@@ -31,17 +31,18 @@ public class DuplicatePhraseReducerRule implements Rule {
             return buildStep(inputText, inputText, tokensBefore, changes);
         }
 
-        int maxPhraseLength = config == null
+        int configuredMaxPhraseLength = config == null
                 ? DEFAULT_MAX_PHRASE_LENGTH
                 : config.getIntParam("maxPhraseLength", DEFAULT_MAX_PHRASE_LENGTH);
-        maxPhraseLength = Math.max(1, Math.min(MAX_SUPPORTED_PHRASE_LENGTH, maxPhraseLength));
-        boolean caseInsensitive = getBooleanParam(config, "caseInsensitive", true);
+        final int effectiveMaxPhraseLength =
+                Math.max(1, Math.min(MAX_SUPPORTED_PHRASE_LENGTH, configuredMaxPhraseLength));
+        final boolean caseInsensitive = getBooleanParam(config, "caseInsensitive", true);
 
         final int[] removedCount = {0};
         String result = ProtectedTextProcessor.transformOutsideMarkdownCode(
                 inputText,
                 normalText -> {
-                    ReductionResult reduction = reduceText(normalText, maxPhraseLength, caseInsensitive, changes);
+                    ReductionResult reduction = reduceText(normalText, effectiveMaxPhraseLength, caseInsensitive, changes);
                     removedCount[0] += reduction.removedCount;
                     return reduction.changed ? preserveBoundaryWhitespace(normalText, reduction.text) : normalText;
                 }
@@ -132,7 +133,9 @@ public class DuplicatePhraseReducerRule implements Rule {
                 }
 
                 if (ngramsMatch(tokens, i, n, caseInsensitive)) {
-                    output.addAll(tokens.subList(i, i + n));
+                    List<String> keptPhrase = new ArrayList<>(tokens.subList(i, i + n));
+                    preserveTrailingPunctuation(keptPhrase, tokens.get(i + 2 * n - 1));
+                    output.addAll(keptPhrase);
                     changes.add("[duplicatePhraseReducer] 删除重复短语: \"" + phraseForChange(tokens, i, n, caseInsensitive) + "\"");
                     removedCount++;
                     i += 2 * n;
@@ -148,6 +151,33 @@ public class DuplicatePhraseReducerRule implements Rule {
         }
 
         return new PassResult(output, removedCount > 0, removedCount);
+    }
+
+    private void preserveTrailingPunctuation(List<String> keptPhrase, String removedLastToken) {
+        if (keptPhrase.isEmpty()) {
+            return;
+        }
+
+        String punctuation = trailingPunctuation(removedLastToken);
+        if (punctuation.isEmpty()) {
+            return;
+        }
+
+        int lastIndex = keptPhrase.size() - 1;
+        String keptLastToken = keptPhrase.get(lastIndex);
+        if (keptLastToken.endsWith(punctuation)) {
+            return;
+        }
+
+        keptPhrase.set(lastIndex, keptLastToken + punctuation);
+    }
+
+    private String trailingPunctuation(String token) {
+        int index = token.length();
+        while (index > 0 && isCommonBoundaryPunctuation(token.charAt(index - 1))) {
+            index--;
+        }
+        return token.substring(index);
     }
 
     private boolean ngramsMatch(List<String> tokens, int start, int n, boolean caseInsensitive) {

@@ -15,9 +15,9 @@
 （每次更新都要更新这一栏）
 
 - 当前版本：v1.5.5
-- 当前阶段：Protected Text Safety Layer 已加入；高风险文本转换规则现在会跳过 Markdown fenced code blocks 和 inline code
+- 当前阶段：Protected Text Safety Layer 已扩展到高风险 Level 1 路径；Markdown fenced code blocks 和 inline code 会被 byte-for-byte 保留
 - 已完成模块数：14/14（Level 1 + Level 2 + Quality Check + AI Generate + Sentence Budget + Duplicate Sentence Remover + Case Normalizer + Duplicate Phrase Reducer + Protected Text Safety Layer）
-- 下一步：Structure/Sentence safety for StructureMinimizerRule and DuplicateSentenceRemoverRule
+- 下一步：继续评估 quoted text、未 fenced JSON-like blocks、Markdown tables 等后续保护范围
 
 ---
 
@@ -278,14 +278,22 @@
   - Markdown fenced code blocks（triple backticks）
   - inline code（single backticks）
 - 已接入以下高风险文本转换规则：
-  - `PunctuationNormalizerRule`
   - `CaseNormalizerRule`
+  - `StructureMinimizerRule`
+  - `DuplicateSentenceRemoverRule`
+  - `DuplicatePhraseReducerRule`
+  - `PunctuationNormalizerRule`
   - `NumberNormalizerRule`
   - `SemanticCompressorRule`
-  - `DuplicatePhraseReducerRule`
-- 这些规则现在只转换 protected regions 之外的普通自然语言文本
+- 这些规则现在只转换 protected regions 之外的普通自然语言文本；protected regions 之外的文本仍可正常优化
 - protected code regions 保持 byte-for-byte unchanged
+- `ProtectedTextProcessor` 是共享 safety utility，不是前端可见规则卡片，也不是独立 pipeline rule
+- 当前不保护 quoted text、未 fenced 的 JSON-like blocks、Markdown tables 或 custom delimiters
 - 新增单元测试：
+  - `ProtectedTextProcessorTest`
+  - `ProtectedMarkdownPipelineTest`
+  - `StructureMinimizerRuleTest`
+  - `DuplicateSentenceRemoverRuleTest`
   - `PunctuationNormalizerRuleTest`
   - `CaseNormalizerRuleTest`
   - `NumberNormalizerRuleTest`
@@ -293,15 +301,16 @@
   - `DuplicatePhraseReducerRuleTest`
 
 本地测试说明：
-- `.\mvnw.cmd test` 未能在当前本地环境运行，因为 `JAVA_HOME` 未正确配置
-- 这是本地环境限制，不代表代码失败
+- Focused protected Markdown regression suite passes
+- `mvn -DskipTests compile` passes
+- Full `mvn test` 当前被既有 Spring context test 阻塞，因为环境缺少 `OPENAI_API_KEY`；该问题与 protected text change 无关
 
 设计决策：
 - v1.5.5 采用共享 utility layer，而不是新增一个普通 pipeline rule
 - 原因：当前 `Rule` interface 只传递 `String input/output`，不携带 shared pipeline context，普通 Protector/Restorer rule 无法安全地跨规则保存 protected state
 - 未来如果引入 `PipelineContext`，可以考虑升级为 Protector/Restorer architecture
 
-状态：Protected Text Safety Layer 已接入五个高风险转换规则
+状态：Protected Text Safety Layer 已接入七个高风险 Level 1 文本转换规则
 
 ---
 
@@ -310,8 +319,7 @@
 | 功能 | 优先级 | 说明 |
 |------|--------|------|
 | OutputFormatDeduplicatorRule | 中 | 去除重复输出格式要求，和 FormatControlRule 形成互补 |
-| Structure/Sentence safety | 中 | 为 StructureMinimizerRule 和 DuplicateSentenceRemoverRule 补充 fenced code blocks / inline code 安全边界 |
-| CodeBlockProtectorRule 升级 | 中 | 当前已有 `ProtectedTextProcessor` 部分覆盖 fenced code blocks 和 inline code；后续可扩展 quoted text、JSON-like blocks、Markdown tables |
+| CodeBlockProtectorRule 升级 | 中 | 当前 `ProtectedTextProcessor` 已覆盖 fenced code blocks 和 inline code；后续可扩展 quoted text、JSON-like blocks、Markdown tables |
 | Level 3 上下文优化 | 中 | 历史裁剪、摘要记忆、相关性过滤 |
 | Level 4 系统级优化 | 低 | 缓存、模型分流、任务拆分 |
 | Level 5 高级优化 | 低 | 长期研究方向 |

@@ -146,15 +146,18 @@
 - inline code（single backticks）
 
 **当前接入规则：**
-- `PunctuationNormalizerRule`
 - `CaseNormalizerRule`
+- `StructureMinimizerRule`
+- `DuplicateSentenceRemoverRule`
+- `DuplicatePhraseReducerRule`
+- `PunctuationNormalizerRule`
 - `NumberNormalizerRule`
 - `SemanticCompressorRule`
-- `DuplicatePhraseReducerRule`
 
 **行为说明：**
-- 上述五个高风险文本转换规则只处理 protected regions 之外的普通自然语言文本
+- 上述高风险 Level 1 文本转换规则只处理 protected regions 之外的普通自然语言文本
 - fenced code blocks 和 inline code 会保持 byte-for-byte unchanged
+- protected regions 之外的普通文本仍然可以被正常优化
 - 该能力是共享 utility layer，不是单独的前端规则卡片，也不是独立 pipeline rule
 
 **已知边界：**
@@ -168,6 +171,20 @@
 - JSON block / Markdown table protection
 - budget-aware protection
 - 若未来引入 `PipelineContext`，可评估 Protector/Restorer architecture
+
+**验证说明：**
+- `ProtectedTextProcessorTest`
+- `ProtectedMarkdownPipelineTest`
+- `CaseNormalizerRuleTest`
+- `StructureMinimizerRuleTest`
+- `DuplicateSentenceRemoverRuleTest`
+- `DuplicatePhraseReducerRuleTest`
+- `PunctuationNormalizerRuleTest`
+- `NumberNormalizerRuleTest`
+- `SemanticCompressorRuleTest`
+- Focused protected Markdown regression suite passes
+- `mvn -DskipTests compile` passes
+- Full `mvn test` is blocked by the existing Spring context test requiring `OPENAI_API_KEY`; unrelated to protected text
 
 ---
 

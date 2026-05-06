@@ -4,6 +4,7 @@ import com.betterprompt.betterpromptbyandyy2.model.RuleConfig;
 import com.betterprompt.betterpromptbyandyy2.model.StepResult;
 import com.betterprompt.betterpromptbyandyy2.optimizer.Rule;
 import com.betterprompt.betterpromptbyandyy2.optimizer.TokenCounter;
+import com.betterprompt.betterpromptbyandyy2.optimizer.util.ProtectedTextProcessor;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -28,15 +29,40 @@ public class DuplicateSentenceRemoverRule implements Rule {
         List<String> changes = new ArrayList<>();
 
         if (inputText.isEmpty()) {
-            changes.add("[duplicateSentenceRemover] 输入为空，无需处理");
+            changes.add("[duplicateSentenceRemover] input is empty, no processing needed");
             return buildStep(inputText, inputText, tokensBefore, changes);
         }
 
-        boolean caseInsensitive = getBooleanParam(config, "caseInsensitive", true);
-        boolean keepFirst = getBooleanParam(config, "keepFirst", true);
+        final boolean caseInsensitive = getBooleanParam(config, "caseInsensitive", true);
+        final boolean keepFirst = getBooleanParam(config, "keepFirst", true);
+        final int[] removedCount = {0};
 
+        String result = ProtectedTextProcessor.transformOutsideMarkdownCode(
+                inputText,
+                normalText -> {
+                    ReductionResult reduction = reduceNormalText(normalText, caseInsensitive, keepFirst, changes);
+                    removedCount[0] += reduction.removedCount;
+                    return reduction.changed ? preserveBoundaryWhitespace(normalText, reduction.text) : normalText;
+                }
+        );
+
+        if (removedCount[0] > 0) {
+            changes.add("[duplicateSentenceRemover] removed " + removedCount[0] + " duplicate sentence(s)");
+        } else {
+            changes.add("[duplicateSentenceRemover] no duplicate sentences detected");
+        }
+
+        return buildStep(inputText, result, tokensBefore, changes);
+    }
+
+    private ReductionResult reduceNormalText(
+            String text,
+            boolean caseInsensitive,
+            boolean keepFirst,
+            List<String> changes
+    ) {
         List<String> sentences = new ArrayList<>();
-        Matcher matcher = SENTENCE_PATTERN.matcher(inputText);
+        Matcher matcher = SENTENCE_PATTERN.matcher(text);
         while (matcher.find()) {
             String sentence = matcher.group().trim();
             if (!sentence.isEmpty()) {
@@ -45,8 +71,7 @@ public class DuplicateSentenceRemoverRule implements Rule {
         }
 
         if (sentences.size() <= 1) {
-            changes.add("[duplicateSentenceRemover] 未检测到重复句");
-            return buildStep(inputText, inputText, tokensBefore, changes);
+            return new ReductionResult(text, false, 0);
         }
 
         List<String> keptSentences = new ArrayList<>();
@@ -63,7 +88,7 @@ public class DuplicateSentenceRemoverRule implements Rule {
                 }
 
                 removedCount++;
-                changes.add("[duplicateSentenceRemover] 删除重复句: \"" + sentence + "\"");
+                changes.add("[duplicateSentenceRemover] removed duplicate sentence: \"" + sentence + "\"");
             }
         } else {
             for (int i = sentences.size() - 1; i >= 0; i--) {
@@ -76,19 +101,13 @@ public class DuplicateSentenceRemoverRule implements Rule {
                 }
 
                 removedCount++;
-                changes.add("[duplicateSentenceRemover] 删除重复句: \"" + sentence + "\"");
+                changes.add("[duplicateSentenceRemover] removed duplicate sentence: \"" + sentence + "\"");
             }
         }
 
-        String result = removedCount > 0 ? String.join(" ", keptSentences) : inputText;
-
-        if (removedCount > 0) {
-            changes.add("[duplicateSentenceRemover] 共删除 " + removedCount + " 个重复句");
-        } else {
-            changes.add("[duplicateSentenceRemover] 未检测到重复句");
-        }
-
-        return buildStep(inputText, result, tokensBefore, changes);
+        return removedCount > 0
+                ? new ReductionResult(String.join(" ", keptSentences), true, removedCount)
+                : new ReductionResult(text, false, 0);
     }
 
     private StepResult buildStep(String inputText, String result, int tokensBefore, List<String> changes) {
@@ -129,5 +148,31 @@ public class DuplicateSentenceRemoverRule implements Rule {
         }
 
         return normalized;
+    }
+
+    private String preserveBoundaryWhitespace(String originalText, String reducedText) {
+        int leadingEnd = 0;
+        while (leadingEnd < originalText.length() && Character.isWhitespace(originalText.charAt(leadingEnd))) {
+            leadingEnd++;
+        }
+
+        int trailingStart = originalText.length();
+        while (trailingStart > leadingEnd && Character.isWhitespace(originalText.charAt(trailingStart - 1))) {
+            trailingStart--;
+        }
+
+        return originalText.substring(0, leadingEnd) + reducedText + originalText.substring(trailingStart);
+    }
+
+    private static class ReductionResult {
+        private final String text;
+        private final boolean changed;
+        private final int removedCount;
+
+        private ReductionResult(String text, boolean changed, int removedCount) {
+            this.text = text;
+            this.changed = changed;
+            this.removedCount = removedCount;
+        }
     }
 }

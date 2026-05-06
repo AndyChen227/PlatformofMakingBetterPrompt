@@ -350,6 +350,8 @@ Skips Markdown fenced code blocks and inline code through `ProtectedTextProcesso
 
 Normalizes whitespace and blank lines — purely structural, no semantic content is changed.
 
+Skips Markdown fenced code blocks and inline code through `ProtectedTextProcessor`.
+
 Four operations applied in sequence:
 
 1. Trim trailing whitespace from every line
@@ -362,6 +364,8 @@ Four operations applied in sequence:
 #### 6. Duplicate Sentence Remover
 
 Removes fully duplicated sentences while keeping the first occurrence. This reduces repeated token usage without changing the user's intended meaning. The first implementation handles exact duplicates after simple normalization.
+
+Skips Markdown fenced code blocks and inline code through `ProtectedTextProcessor`.
 
 Current execution order: `StructureMinimizerRule → DuplicateSentenceRemoverRule → PunctuationNormalizerRule`.
 
@@ -410,9 +414,13 @@ Skips Markdown fenced code blocks and inline code through `ProtectedTextProcesso
 
 #### Protected Text Safety Layer
 
-`ProtectedTextProcessor` is a shared utility layer used by the high-risk text transformation rules above. It preserves Markdown fenced code blocks and inline code byte-for-byte while allowing normal natural-language text outside those regions to be optimized.
+`ProtectedTextProcessor` is a shared safety utility used by the high-risk Level 1 text transformation rules. It is not a frontend-visible rule card and not an independent pipeline rule.
 
-Current scope: fenced code blocks using triple backticks and inline code wrapped in single backticks. Future work: quoted text, Markdown tables, JSON-like blocks outside fenced code, and custom delimiters.
+Current scope: fenced code blocks using triple backticks and inline code wrapped in single backticks. These protected regions are preserved byte-for-byte while normal natural-language text outside those regions can still be optimized.
+
+Current protected rules: `CaseNormalizerRule`, `StructureMinimizerRule`, `DuplicateSentenceRemoverRule`, `DuplicatePhraseReducerRule`, `PunctuationNormalizerRule`, `NumberNormalizerRule`, and `SemanticCompressorRule`.
+
+Out of scope: quoted text, Markdown tables, JSON-like blocks outside fenced code, and custom delimiters.
 
 ---
 
@@ -774,7 +782,7 @@ Open `http://localhost:8080` in your browser.
 - [x] v1.5.2 — DuplicateSentenceRemoverRule (remove fully duplicated sentences)
 - [x] v1.5.3 — CaseNormalizerRule (conservative all-uppercase prompt normalization)
 - [x] v1.5.4 — DuplicatePhraseReducerRule (remove consecutive duplicated short phrases)
-- [x] v1.5.5 — Protected Text Safety Layer (partial Code Block Protector via `ProtectedTextProcessor`; high-risk rules skip fenced code blocks and inline code)
+- [x] v1.5.5 — Protected Text Safety Layer (shared `ProtectedTextProcessor`; high-risk Level 1 text rules skip fenced code blocks and inline code)
 - [ ] v2.0.0 — Level 3: context optimization (deduplication, reference compression)
 - [ ] v3.0.0 — Level 4 & 5: system-level optimization (system prompt factoring, conversation compression)
 
@@ -816,9 +824,9 @@ in the UI.
 
 ### Why a ProtectedTextProcessor utility instead of a visible rule?
 
-v1.5.5 protects Markdown fenced code blocks and inline code inside the high-risk transformation rules themselves. This is implemented as `ProtectedTextProcessor`, not as a separate frontend rule card or normal pipeline rule, because the current `Rule` interface only passes String input/output and does not carry shared pipeline context.
+v1.5.5 protects Markdown fenced code blocks and inline code inside the high-risk Level 1 transformation rules themselves. This is implemented as `ProtectedTextProcessor`, not as a separate frontend rule card or normal pipeline rule, because the current `Rule` interface only passes String input/output and does not carry shared pipeline context.
 
-The current scope is deliberately partial: fenced code blocks and inline code are protected, while quoted text, Markdown tables, JSON-like blocks outside fenced code, and custom delimiters remain future work. A future Protector/Restorer architecture could be considered if `PipelineContext` is introduced.
+The current scope is deliberately partial: fenced code blocks and inline code are preserved byte-for-byte, while normal text outside those regions can still be optimized. Quoted text, Markdown tables, JSON-like blocks outside fenced code, and custom delimiters remain future work. A future Protector/Restorer architecture could be considered if `PipelineContext` is introduced.
 
 ### Why LOW / MID / HIGH instead of exposing raw numeric parameters?
 

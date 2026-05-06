@@ -4,13 +4,14 @@ import com.betterprompt.betterpromptbyandyy2.model.RuleConfig;
 import com.betterprompt.betterpromptbyandyy2.model.StepResult;
 import com.betterprompt.betterpromptbyandyy2.optimizer.Rule;
 import com.betterprompt.betterpromptbyandyy2.optimizer.TokenCounter;
+import com.betterprompt.betterpromptbyandyy2.optimizer.util.ProtectedTextProcessor;
 
 import java.util.ArrayList;
 import java.util.List;
 
 /**
  * ============================================================
- *  Structure Minimizer Rule — Real Implementation
+ *  Structure Minimizer Rule - Real Implementation
  * ============================================================
  * Current behaviour:
  *   1. Collapses multiple consecutive blank lines into a single newline
@@ -21,7 +22,7 @@ import java.util.List;
  * Scope boundary:
  *   This rule handles WHITESPACE characters only (spaces, tabs, newlines).
  *   It does NOT handle:
- *     - Repeated punctuation marks (!!! / ??? / ....)  → PunctuationNormalizer
+ *     - Repeated punctuation marks (!!! / ??? / ....) -> PunctuationNormalizer
  *
  * Future real algorithm should:
  *   - Detect and remove redundant structural markers:
@@ -30,7 +31,7 @@ import java.util.List;
  *       when nesting adds no semantic value
  *   - Remove empty list items and empty markdown table cells
  *   - Detect copy-paste artefacts (duplicate paragraphs, repeated headers)
- *   - Optionally normalise all list markers to a single style (-, *, •)
+ *   - Optionally normalise all list markers to a single style (-, *, etc.)
  * ============================================================
  */
 public class StructureMinimizerRule implements Rule {
@@ -45,38 +46,39 @@ public class StructureMinimizerRule implements Rule {
         if (inputText == null) inputText = "";
         int tokensBefore = TokenCounter.count(inputText);
 
-        String result = inputText;
         List<String> changes = new ArrayList<>();
+        boolean[] trimmedTrailingWhitespace = {false};
+        boolean[] collapsedBlankLines = {false};
+        boolean[] collapsedRepeatedSpaces = {false};
+        boolean[] strippedOuterWhitespace = {false};
 
-        // Step 1: Trim trailing whitespace per line
-        String trimmedLines = result.lines()
-                .map(String::stripTrailing)
-                .reduce((a, b) -> a + "\n" + b)
-                .orElse("");
-        if (!trimmedLines.equals(result)) {
-            changes.add("清理每行尾部空格");
-            result = trimmedLines;
-        }
+        String result = ProtectedTextProcessor.transformOutsideMarkdownCode(
+                inputText,
+                normalText -> cleanNormalText(
+                        normalText,
+                        trimmedTrailingWhitespace,
+                        collapsedBlankLines,
+                        collapsedRepeatedSpaces
+                )
+        );
 
-        // Step 2: Collapse 3+ consecutive blank lines → 1 blank line
-        String collapsedNewlines = result.replaceAll("(\r?\n){3,}", "\n\n");
-        if (!collapsedNewlines.equals(result)) {
-            changes.add("折叠多余空行");
-            result = collapsedNewlines;
-        }
-
-        // Step 3: Collapse multiple consecutive spaces → single space
-        String collapsedSpaces = result.replaceAll("[ \t]{2,}", " ");
-        if (!collapsedSpaces.equals(result)) {
-            changes.add("折叠多余空格");
-            result = collapsedSpaces;
-        }
-
-        // Step 4: Strip leading/trailing whitespace from entire text
         String stripped = result.strip();
         if (!stripped.equals(result)) {
-            changes.add("清理首尾空白");
+            strippedOuterWhitespace[0] = true;
             result = stripped;
+        }
+
+        if (trimmedTrailingWhitespace[0]) {
+            changes.add("清理每行尾部空格");
+        }
+        if (collapsedBlankLines[0]) {
+            changes.add("折叠多余空行");
+        }
+        if (collapsedRepeatedSpaces[0]) {
+            changes.add("折叠多余空格");
+        }
+        if (strippedOuterWhitespace[0]) {
+            changes.add("清理首尾空白");
         }
 
         if (changes.isEmpty()) {
@@ -95,5 +97,37 @@ public class StructureMinimizerRule implements Rule {
         step.setTokensSaved(tokensBefore - tokensAfter);
         step.setChanges(changes);
         return step;
+    }
+
+    private String cleanNormalText(
+            String text,
+            boolean[] trimmedTrailingWhitespace,
+            boolean[] collapsedBlankLines,
+            boolean[] collapsedRepeatedSpaces
+    ) {
+        String result = text;
+
+        String trimmedLines = result.lines()
+                .map(String::stripTrailing)
+                .reduce((a, b) -> a + "\n" + b)
+                .orElse("");
+        if (!trimmedLines.equals(result)) {
+            trimmedTrailingWhitespace[0] = true;
+            result = trimmedLines;
+        }
+
+        String collapsedNewlines = result.replaceAll("(\\r?\\n){3,}", "\n\n");
+        if (!collapsedNewlines.equals(result)) {
+            collapsedBlankLines[0] = true;
+            result = collapsedNewlines;
+        }
+
+        String collapsedSpaces = result.replaceAll("[ \t]{2,}", " ");
+        if (!collapsedSpaces.equals(result)) {
+            collapsedRepeatedSpaces[0] = true;
+            result = collapsedSpaces;
+        }
+
+        return result;
     }
 }

@@ -31,6 +31,31 @@ class PunctuationNormalizerRuleTest {
     }
 
     @Test
+    void preservesFencedCodeBlockInFrontendPromptScenario() {
+        String input = """
+                PLEASE EXPLAIN THIS CODE!!!
+
+                ```java
+                SYSTEM.OUT.PRINTLN("HELLO!!!");
+                String value = "twenty";
+                ```
+
+                I NEED TWENTY EXAMPLES??
+                """;
+
+        String output = rule.apply(input, new RuleConfig()).getOutputText();
+
+        assertThat(output).contains("PLEASE EXPLAIN THIS CODE!");
+        assertThat(output).contains("""
+                ```java
+                SYSTEM.OUT.PRINTLN("HELLO!!!");
+                String value = "twenty";
+                ```
+                """);
+        assertThat(output).contains("I NEED TWENTY EXAMPLES?");
+    }
+
+    @Test
     void keepsExistingBehaviorForPlainText() {
         String output = rule.apply("Wait!!!! Really???? Fine.....", new RuleConfig()).getOutputText();
 

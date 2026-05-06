@@ -70,6 +70,34 @@ class NumberNormalizerRuleTest {
         assertThat(output).isEqualTo(input);
     }
 
+    @Test
+    void preservesFencedCodeBlockInFrontendPromptScenario() {
+        String input = """
+                PLEASE EXPLAIN THIS CODE!!!
+
+                ```java
+                SYSTEM.OUT.PRINTLN("HELLO!!!");
+                String value = "twenty";
+                ```
+
+                I NEED TWENTY EXAMPLES??
+                """;
+        String expected = """
+                PLEASE EXPLAIN THIS CODE!!!
+
+                ```java
+                SYSTEM.OUT.PRINTLN("HELLO!!!");
+                String value = "twenty";
+                ```
+
+                I NEED 20 EXAMPLES??
+                """;
+
+        String output = rule.apply(input, testConfig()).getOutputText();
+
+        assertThat(output).isEqualTo(expected);
+    }
+
     private RuleConfig testConfig() {
         RuleConfig config = new RuleConfig();
         config.setEnabled(true);

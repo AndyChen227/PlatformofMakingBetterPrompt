@@ -15,10 +15,10 @@
 | 大小写规范化 | Case Normalizer | 保守修复明显全大写 prompt，使文本更稳定、更易读 | 输入优化 | 第一阶段 | 已完成 |
 | 重复句删除 | Duplicate Sentence Remover | 删除 prompt 中重复出现的完整句子，减少重复表达造成的 token 浪费 | 输入优化 | 第一阶段 | 已完成 |
 | 重复短语压缩 | Duplicate Phrase Reducer | 删除同一句内部重复出现的词组或短语 | 输入优化 | 第一阶段 | 已完成 |
-| 代码块保护 | Code Block Protector | 通过 `ProtectedTextProcessor` 保护 Markdown fenced code blocks 和 inline code，避免高风险规则误改代码内容 | 输入优化 | 第一阶段 | 部分完成 |
+| 代码块保护 | Code Block Protector | 通过共享 `ProtectedTextProcessor` 保护 Markdown fenced code blocks 和 inline code，避免高风险 Level 1 文本转换规则误改代码内容 | 输入优化 | 第一阶段 | 部分完成 |
 | 引用文本保护 | Quoted Text Protector | 保护引号内文本，避免用户明确引用的内容被误改 | 输入优化 | 第一阶段 | 未完成 |
 
-> 当前实现说明：代码块保护不是单独的前端规则卡片，也不是独立 pipeline rule；它由 `ProtectedTextProcessor` 作为共享 utility layer 提供。目前已覆盖 Markdown fenced code blocks 和 inline code，并接入 Punctuation / Case / Number / Semantic / Duplicate Phrase 五个高风险转换规则。JSON-like blocks、Markdown tables、quoted text 和自定义 delimiter 仍属于后续升级范围。
+> 当前实现说明：代码块保护不是单独的前端规则卡片，也不是独立 pipeline rule；它由 `ProtectedTextProcessor` 作为共享 utility layer 提供。目前已覆盖 Markdown fenced code blocks 和 inline code，并接入 Case / Structure / Duplicate Sentence / Duplicate Phrase / Punctuation / Number / Semantic 七个高风险 Level 1 文本转换规则。protected regions 保持 byte-for-byte unchanged，普通文本仍可优化。JSON-like blocks outside fenced code、Markdown tables、quoted text 和自定义 delimiter 仍属于后续升级范围。
 
 ## 结构控制 — 控制 prompt 整体的长度和格式
 
