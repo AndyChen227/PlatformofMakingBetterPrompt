@@ -33,8 +33,8 @@ public class DuplicateSentenceRemoverRule implements Rule {
             return buildStep(inputText, inputText, tokensBefore, changes);
         }
 
-        final boolean caseInsensitive = getBooleanParam(config, "caseInsensitive", true);
-        final boolean keepFirst = getBooleanParam(config, "keepFirst", true);
+        final boolean caseInsensitive = config == null ? true : config.getBooleanParam("caseInsensitive", true);
+        final boolean keepFirst = config == null ? true : config.getBooleanParam("keepFirst", true);
         final int[] removedCount = {0};
 
         String result = ProtectedTextProcessor.transformOutsideMarkdownCode(
@@ -123,18 +123,6 @@ public class DuplicateSentenceRemoverRule implements Rule {
         step.setTokensSaved(tokensBefore - tokensAfter);
         step.setChanges(changes);
         return step;
-    }
-
-    private boolean getBooleanParam(RuleConfig config, String key, boolean defaultValue) {
-        if (config == null || config.getParams() == null || !config.getParams().containsKey(key)) {
-            return defaultValue;
-        }
-
-        Object val = config.getParams().get(key);
-        if (val instanceof Boolean bool) {
-            return bool;
-        }
-        return Boolean.parseBoolean(val.toString());
     }
 
     private String normalizeSentence(String sentence, boolean caseInsensitive) {

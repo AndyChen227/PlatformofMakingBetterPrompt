@@ -60,11 +60,17 @@ public class RuleEngine {
                 continue;
             }
 
-            StepResult step = rule.apply(currentText, config);
-            step.setStatus("done");
-            steps.add(step);
-            byRule.put(rule.getRuleName(), Math.max(0, step.getTokensSaved()));
-            currentText = step.getOutputText() != null ? step.getOutputText() : currentText;
+            try {
+                StepResult step = rule.apply(currentText, config);
+                step.setStatus("done");
+                steps.add(step);
+                byRule.put(rule.getRuleName(), Math.max(0, step.getTokensSaved()));
+                currentText = step.getOutputText() != null ? step.getOutputText() : currentText;
+            } catch (Exception e) {
+                StepResult error = buildErrorStep(rule, currentText, e);
+                steps.add(error);
+                byRule.put(rule.getRuleName(), 0);
+            }
         }
 
         int finalTokens = TokenCounter.count(currentText);
@@ -97,6 +103,21 @@ public class RuleEngine {
         step.setTokensSaved(0);
         step.setChanges(List.of("[SKIPPED] Rule is disabled"));
         step.setStatus("skipped");
+        return step;
+    }
+
+    private StepResult buildErrorStep(Rule rule, String currentText, Exception e) {
+        int tokens = TokenCounter.count(currentText);
+        StepResult step = new StepResult();
+        step.setRuleName(rule.getRuleName());
+        step.setRuleLevel(rule.getRuleLevel());
+        step.setInputText(currentText);
+        step.setOutputText(currentText);
+        step.setTokensBefore(tokens);
+        step.setTokensAfter(tokens);
+        step.setTokensSaved(0);
+        step.setChanges(List.of("[ERROR] Rule failed: " + e.getClass().getSimpleName() + ": " + e.getMessage()));
+        step.setStatus("error");
         return step;
     }
 }

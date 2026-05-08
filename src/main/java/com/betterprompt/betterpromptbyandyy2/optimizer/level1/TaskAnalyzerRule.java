@@ -52,7 +52,7 @@ public class TaskAnalyzerRule implements Rule {
     @Override public String getRuleId()      { return "taskAnalyzer"; }
     @Override public String getRuleName()    { return "Task Analyzer"; }
     @Override public String getRuleLevel()   { return "Level 1"; }
-    @Override public String getDescription() { return "Classifies task type and complexity, appends metadata tag"; }
+    @Override public String getDescription() { return "Classifies task type and complexity without modifying the prompt"; }
 
     @Override
     public StepResult apply(String inputText, RuleConfig config) {

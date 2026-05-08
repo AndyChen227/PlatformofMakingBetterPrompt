@@ -4,6 +4,7 @@ import com.betterprompt.betterpromptbyandyy2.model.RuleConfig;
 import com.betterprompt.betterpromptbyandyy2.model.StepResult;
 import com.betterprompt.betterpromptbyandyy2.optimizer.Rule;
 import com.betterprompt.betterpromptbyandyy2.optimizer.TokenCounter;
+import com.betterprompt.betterpromptbyandyy2.optimizer.util.ProtectedTextProcessor;
 
 import java.util.AbstractMap;
 import java.util.ArrayList;
@@ -63,18 +64,12 @@ public class FormatControlRule implements Rule {
         if (inputText == null) inputText = "";
         int tokensBefore = TokenCounter.count(inputText);
 
-        String result = inputText;
         List<String> changes = new ArrayList<>();
 
-        for (Map.Entry<String, String> entry : FORMAT_REPLACEMENTS) {
-            String verbose    = entry.getKey();
-            String compact    = entry.getValue();
-            String replaced   = result.replaceAll("(?i)" + java.util.regex.Pattern.quote(verbose), compact);
-            if (!replaced.equals(result)) {
-                changes.add("[formatControl] \"" + verbose + "\" → \"" + compact + "\"");
-                result = replaced;
-            }
-        }
+        String result = ProtectedTextProcessor.transformOutsideMarkdownCode(
+                inputText,
+                normalText -> applyReplacements(normalText, changes)
+        );
 
         if (changes.isEmpty()) {
             changes.add("[formatControl] No verbose formatting instructions found");
@@ -92,5 +87,19 @@ public class FormatControlRule implements Rule {
         step.setTokensSaved(tokensBefore - tokensAfter);
         step.setChanges(changes);
         return step;
+    }
+
+    private String applyReplacements(String text, List<String> changes) {
+        String result = text;
+        for (Map.Entry<String, String> entry : FORMAT_REPLACEMENTS) {
+            String verbose = entry.getKey();
+            String compact = entry.getValue();
+            String replaced = result.replaceAll("(?i)" + java.util.regex.Pattern.quote(verbose), compact);
+            if (!replaced.equals(result)) {
+                changes.add("[formatControl] \"" + verbose + "\" → \"" + compact + "\"");
+                result = replaced;
+            }
+        }
+        return result;
     }
 }

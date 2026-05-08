@@ -36,4 +36,15 @@ public class RuleConfig {
         Object val = params.get(key);
         return val != null ? val.toString() : defaultValue;
     }
+
+    /**
+     * Helper: safely read a boolean param with a default fallback.
+     */
+    public boolean getBooleanParam(String key, boolean defaultValue) {
+        if (params == null || !params.containsKey(key)) return defaultValue;
+        Object val = params.get(key);
+        if (val instanceof Boolean b) return b;
+        if (val == null) return defaultValue;
+        return Boolean.parseBoolean(val.toString());
+    }
 }

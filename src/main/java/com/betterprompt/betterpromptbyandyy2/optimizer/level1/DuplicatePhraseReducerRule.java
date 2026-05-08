@@ -36,7 +36,7 @@ public class DuplicatePhraseReducerRule implements Rule {
                 : config.getIntParam("maxPhraseLength", DEFAULT_MAX_PHRASE_LENGTH);
         final int effectiveMaxPhraseLength =
                 Math.max(1, Math.min(MAX_SUPPORTED_PHRASE_LENGTH, configuredMaxPhraseLength));
-        final boolean caseInsensitive = getBooleanParam(config, "caseInsensitive", true);
+        final boolean caseInsensitive = config == null ? true : config.getBooleanParam("caseInsensitive", true);
 
         final int[] removedCount = {0};
         String result = ProtectedTextProcessor.transformOutsideMarkdownCode(
@@ -237,18 +237,6 @@ public class DuplicatePhraseReducerRule implements Rule {
             i--;
         }
         return i >= 0 && (token.charAt(i) == '.' || token.charAt(i) == '?' || token.charAt(i) == '!');
-    }
-
-    private boolean getBooleanParam(RuleConfig config, String key, boolean defaultValue) {
-        if (config == null || config.getParams() == null || !config.getParams().containsKey(key)) {
-            return defaultValue;
-        }
-
-        Object val = config.getParams().get(key);
-        if (val instanceof Boolean bool) {
-            return bool;
-        }
-        return Boolean.parseBoolean(val.toString());
     }
 
     private String preserveBoundaryWhitespace(String originalText, String reducedText) {
