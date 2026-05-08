@@ -237,6 +237,7 @@ BetterPromptByAndyy2.0/
     │   │       │   └── NumberNormalizerRule.java   # Written numbers → Arabic numerals
     │   │       │
     │   │       └── level2/                         # Output Control Rules
+    │   │           ├── OutputFormatDeduplicatorRule.java # Remove repeated output-format instructions
     │   │           ├── SentenceBudgetRule.java     # Sentence-count limit
     │   │           ├── LengthControlRule.java      # Hard word-count truncation
     │   │           └── FormatControlRule.java      # Verbose format instructions → symbols
@@ -430,19 +431,31 @@ These rules apply after the input has been cleaned and compressed. They enforce 
 
 ---
 
-#### 10. Sentence Budget
+#### 10. Output Format Deduplicator
+
+Removes repeated output-format instructions while keeping the first instruction for each format type. Supported first-version format types are bullet list, numbered list, table, JSON, Markdown, and code block.
+
+Example: `Explain recursion. Please use bullet points. Answer as a list. Give me bullet points.` → `Explain recursion. Please use bullet points.`
+
+Skips Markdown fenced code blocks and inline code through `ProtectedTextProcessor`.
+
+Current execution order: `OutputFormatDeduplicatorRule → SentenceBudgetRule → LengthControlRule → FormatControlRule`.
+
+---
+
+#### 11. Sentence Budget
 
 Limits the prompt by maximum sentence count before word-budget truncation. If the prompt exceeds `maxSentences` (default: 3), it keeps the first N complete sentences and appends an ellipsis. This rule runs before Length Control.
 
 ---
 
-#### 11. Length Control
+#### 12. Length Control
 
 Acts as the final hard word-budget guard. If the prompt still exceeds `maxWords` (default: 50) after earlier optimization rules, it truncates the text at a word boundary and appends `...`.
 
 ---
 
-#### 12. Format Control
+#### 13. Format Control
 
 Replaces verbose, human-readable formatting instructions with their compact symbol equivalents.
 
@@ -482,6 +495,10 @@ Run the full optimization pipeline on a prompt.
       "params": { "compressionLevel": 50 }
     },
     "structureMinimizer": {
+      "enabled": true,
+      "params": {}
+    },
+    "outputFormatDeduplicator": {
       "enabled": true,
       "params": {}
     },
@@ -664,6 +681,12 @@ Returns metadata for all registered rules in pipeline order.
     "description": "Converts written English numbers to Arabic numerals"
   },
   {
+    "id": "outputFormatDeduplicator",
+    "name": "Output Format Deduplicator",
+    "level": "Level 2",
+    "description": "Removes repeated output-format instructions while keeping the first one"
+  },
+  {
     "id": "sentenceBudget",
     "name": "Sentence Budget",
     "level": "Level 2",
@@ -783,6 +806,7 @@ Open `http://localhost:8080` in your browser.
 - [x] v1.5.3 — CaseNormalizerRule (conservative all-uppercase prompt normalization)
 - [x] v1.5.4 — DuplicatePhraseReducerRule (remove consecutive duplicated short phrases)
 - [x] v1.5.5 — Protected Text Safety Layer (shared `ProtectedTextProcessor`; high-risk Level 1 text rules skip fenced code blocks and inline code)
+- [x] v1.5.6 — OutputFormatDeduplicatorRule (remove repeated output-format instructions before sentence/length budgets)
 - [ ] v2.0.0 — Level 3: context optimization (deduplication, reference compression)
 - [ ] v3.0.0 — Level 4 & 5: system-level optimization (system prompt factoring, conversation compression)
 

@@ -20,6 +20,7 @@ const state = {
     duplicatePhraseReducer: { enabled: true, params: { maxPhraseLength: 3, caseInsensitive: true } },
     punctuationNormalizer:  { enabled: true,  params: {} },
     numberNormalizer:       { enabled: true,  params: {} },
+    outputFormatDeduplicator: { enabled: true, params: {} },
     sentenceBudget:         { enabled: true,  params: { maxSentences: 3 } },
     lengthControl:          { enabled: true,  params: { maxWords: 50 } },
     formatControl:          { enabled: true,  params: {} },
@@ -40,6 +41,7 @@ const RULE_ORDER = [
   'duplicatePhraseReducer',
   'punctuationNormalizer',
   'numberNormalizer',
+  'outputFormatDeduplicator',
   'sentenceBudget',
   'lengthControl',
   'formatControl',
@@ -50,7 +52,8 @@ const RULE_LEVEL = {
   semanticCompressor: 'l1', structureMinimizer: 'l1',
   duplicateSentenceRemover: 'l1', duplicatePhraseReducer: 'l1',
   punctuationNormalizer: 'l1', numberNormalizer: 'l1',
-  sentenceBudget: 'l2', lengthControl: 'l2', formatControl: 'l2',
+  outputFormatDeduplicator: 'l2', sentenceBudget: 'l2',
+  lengthControl: 'l2', formatControl: 'l2',
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -204,6 +207,20 @@ const RULE_INFO = {
       'Support ordinal numbers (first, second → 1st, 2nd)',
       'Support decimals (one point five → 1.5)',
       'Protect numbers inside code blocks and quoted strings',
+    ],
+  },
+  outputFormatDeduplicator: {
+    name: 'Output Format Deduplicator',
+    level: 'Level 2',
+    levelClass: 'badge-red',
+    what: 'Removes repeated output-format instructions such as multiple bullet-list, table, JSON, Markdown, or code-block formatting requests while keeping the first one.',
+    hasParams: false,
+    exBefore: 'Explain recursion. Please use bullet points. Answer as a list. Give me bullet points.',
+    exAfter: 'Explain recursion. Please use bullet points.',
+    future: [
+      'Semantic similarity matching for paraphrased format requests',
+      'Conflict detection for incompatible formats such as JSON and bullet points',
+      'Stronger multilingual support',
     ],
   },
   sentenceBudget: {
@@ -750,42 +767,87 @@ function buildStatsBarHTML(ts) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// WORD-LEVEL DIFF
+// SENTENCE-AWARE DIFF
 // ═══════════════════════════════════════════════════════════════
 
-function tokenize(text) {
-  if (!text || !text.trim()) return [];
-  return text.trim().split(/\s+/);
+/*
+ * The Token Analysis display intentionally uses sentence-aware matching.
+ * Word-set diffing is misleading when repeated phrases occur in both kept and
+ * removed text, e.g. duplicate output-format sentences that all contain
+ * "bullet points". Matching sentence-like chunks avoids partial deletion
+ * highlights that make removed instructions look only partly removed.
+ */
+function splitDiffChunks(text) {
+  if (!text) return [];
+
+  const chunks = [];
+  const pattern = /[^.!?]+[.!?]?(?:\s+|$)/g;
+  let match;
+  let cursor = 0;
+
+  while ((match = pattern.exec(text)) !== null) {
+    if (match.index > cursor) {
+      chunks.push(text.slice(cursor, match.index));
+    }
+    chunks.push(match[0]);
+    cursor = pattern.lastIndex;
+  }
+
+  if (cursor < text.length) {
+    chunks.push(text.slice(cursor));
+  }
+
+  return chunks.length ? chunks : [text];
+}
+
+function normalizeDiffChunk(chunk) {
+  return chunk.replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
+function buildChunkCounts(chunks) {
+  const counts = new Map();
+  chunks.forEach(chunk => {
+    const key = normalizeDiffChunk(chunk);
+    if (!key) return;
+    counts.set(key, (counts.get(key) || 0) + 1);
+  });
+  return counts;
+}
+
+function renderSentenceAwareDiff(sourceText, comparisonText, className) {
+  if (!sourceText) return '';
+
+  const sourceChunks = splitDiffChunks(sourceText);
+  const comparisonCounts = buildChunkCounts(splitDiffChunks(comparisonText));
+
+  return sourceChunks.map(chunk => {
+    const key = normalizeDiffChunk(chunk);
+    if (!key) {
+      return escHtml(chunk);
+    }
+
+    const remaining = comparisonCounts.get(key) || 0;
+    if (remaining > 0) {
+      comparisonCounts.set(key, remaining - 1);
+      return escHtml(chunk);
+    }
+
+    return `<span class="${className}">${escHtml(chunk)}</span>`;
+  }).join('');
 }
 
 /**
- * Render the "before" text: words that were deleted shown with red strikethrough.
+ * Render the "before" text: sentence-like chunks that were deleted are red.
  */
 function generateDiffBefore(before, after) {
-  if (!before) return '';
-  const bWords = tokenize(before);
-  const aSet   = new Set(tokenize(after).map(w => w.toLowerCase()));
-  return bWords.map(w => {
-    if (!aSet.has(w.toLowerCase())) {
-      return `<span class="diff-del">${escHtml(w)}</span>`;
-    }
-    return escHtml(w);
-  }).join(' ');
+  return renderSentenceAwareDiff(before, after, 'diff-del');
 }
 
 /**
- * Render the "after" text: words that are genuinely new shown with green highlight.
+ * Render the "after" text: sentence-like chunks that are new are green.
  */
 function generateDiffAfter(before, after) {
-  if (!after) return '';
-  const aWords = tokenize(after);
-  const bSet   = new Set(tokenize(before).map(w => w.toLowerCase()));
-  return aWords.map(w => {
-    if (!bSet.has(w.toLowerCase())) {
-      return `<span class="diff-add">${escHtml(w)}</span>`;
-    }
-    return escHtml(w);
-  }).join(' ');
+  return renderSentenceAwareDiff(after, before, 'diff-add');
 }
 
 // ═══════════════════════════════════════════════════════════════

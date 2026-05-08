@@ -14,10 +14,10 @@
 
 （每次更新都要更新这一栏）
 
-- 当前版本：v1.5.5
-- 当前阶段：Protected Text Safety Layer 已扩展到高风险 Level 1 路径；Markdown fenced code blocks 和 inline code 会被 byte-for-byte 保留
+- 当前版本：v1.5.6
+- 当前阶段：Output Format Deduplicator 已加入 Level 2；重复输出格式要求会保留首个、删除后续重复项
 - 已完成模块数：14/14（Level 1 + Level 2 + Quality Check + AI Generate + Sentence Budget + Duplicate Sentence Remover + Case Normalizer + Duplicate Phrase Reducer + Protected Text Safety Layer）
-- 下一步：继续评估 quoted text、未 fenced JSON-like blocks、Markdown tables 等后续保护范围
+- 下一步：继续评估格式冲突检测、quoted text、未 fenced JSON-like blocks、Markdown tables 等后续保护范围
 
 ---
 
@@ -314,11 +314,41 @@
 
 ---
 
+### ✅ v1.5.6 — OutputFormatDeduplicatorRule 上线（2026/5/6）
+
+产出：
+- 新增 `OutputFormatDeduplicatorRule`（Level 2），位置：`src/main/java/com/betterprompt/betterpromptbyandyy2/optimizer/level2/OutputFormatDeduplicatorRule.java`
+- 用于删除重复输出格式要求，同时保留每种格式类型第一次出现的要求
+- 当前支持格式类型：
+  - `BULLET_LIST`
+  - `NUMBERED_LIST`
+  - `TABLE`
+  - `JSON`
+  - `MARKDOWN`
+  - `CODE_BLOCK`
+- 使用 `ProtectedTextProcessor`，不会删除 Markdown fenced code blocks 或 inline code 内的格式指令文本
+- `RuleRegistryConfig` 中 Level 2 执行顺序更新为：`OutputFormatDeduplicatorRule → SentenceBudgetRule → LengthControlRule → FormatControlRule`
+- 前端新增 Level 2 规则卡片、`state.rules`、`RULE_ORDER`、`RULE_LEVEL`、`RULE_INFO`
+- 新增 `OutputFormatDeduplicatorRuleTest`
+
+验证：
+- 输入：`Explain recursion. Please use bullet points. Answer as a list. Give me bullet points.`
+- 输出：`Explain recursion. Please use bullet points.`
+- 已覆盖 bullet list、numbered list、table、JSON、不同格式不互删、protected fenced code block、inline code 测试
+
+边界：
+- 第一版是规则匹配，不是 AI 语义级去重
+- 不做格式冲突检测，例如 JSON 和 bullet points 可以同时保留
+- 不删除不同 format type 之间的要求
+
+状态：OutputFormatDeduplicatorRule 后端、前端、测试与文档已接入
+
+---
+
 ## 待完成功能
 
 | 功能 | 优先级 | 说明 |
 |------|--------|------|
-| OutputFormatDeduplicatorRule | 中 | 去除重复输出格式要求，和 FormatControlRule 形成互补 |
 | CodeBlockProtectorRule 升级 | 中 | 当前 `ProtectedTextProcessor` 已覆盖 fenced code blocks 和 inline code；后续可扩展 quoted text、JSON-like blocks、Markdown tables |
 | Level 3 上下文优化 | 中 | 历史裁剪、摘要记忆、相关性过滤 |
 | Level 4 系统级优化 | 低 | 缓存、模型分流、任务拆分 |
@@ -402,8 +432,8 @@
 
 ## 下一步行动
 
-1. 评估 OutputFormatDeduplicatorRule 与 CodeBlockProtectorRule 的优先级
-2. 启动下一条 Level 1 规则设计
+1. 评估 CodeBlockProtectorRule 后续扩展范围（quoted text、JSON-like blocks、Markdown tables）
+2. 评估格式冲突检测与 Constraint Deduplicator 的优先级
 
 ---
 

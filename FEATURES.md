@@ -60,7 +60,7 @@
 
 **byRule 贡献度 Map**：key 为 `rule.getRuleName()`，value 为 `Math.max(0, step.getTokensSaved())`（负值（TaskAnalyzer 追加 tag 时）记为 0）
 
-**验证方式**：POST /api/optimize，传入包含多条规则的请求；检查响应中 steps 数组长度等于注册规则数（11），跳过的 rules status="skipped"，执行的 rules status="done"
+**验证方式**：POST /api/optimize，传入包含多条规则的请求；检查响应中 steps 数组长度等于注册规则数（13），跳过的 rules status="skipped"，执行的 rules status="done"
 
 ---
 
@@ -80,9 +80,10 @@
 | 7 | `DuplicatePhraseReducerRule` | `duplicatePhraseReducer` | Level 1 |
 | 8 | `PunctuationNormalizerRule` | `punctuationNormalizer` | Level 1 |
 | 9 | `NumberNormalizerRule` | `numberNormalizer` | Level 1 |
-| 10 | `SentenceBudgetRule` | `sentenceBudget` | Level 2 |
-| 11 | `LengthControlRule` | `lengthControl` | Level 2 |
-| 12 | `FormatControlRule` | `formatControl` | Level 2 |
+| 10 | `OutputFormatDeduplicatorRule` | `outputFormatDeduplicator` | Level 2 |
+| 11 | `SentenceBudgetRule` | `sentenceBudget` | Level 2 |
+| 12 | `LengthControlRule` | `lengthControl` | Level 2 |
+| 13 | `FormatControlRule` | `formatControl` | Level 2 |
 
 **新增规则的步骤**：
 1. 创建 `YourNewRule.java`，实现 `Rule` 接口（放在 `optimizer/` 下任意子包）
@@ -336,7 +337,7 @@ actually
 - 不处理标点，归 PunctuationNormalizerRule
 - 不删除重复句，归 DuplicateSentenceRemoverRule
 - 不处理句内重复短语，未来归 DuplicatePhraseReducerRule
-- 不处理格式要求，归 FormatControlRule 或未来 OutputFormatDeduplicatorRule
+- 不处理格式要求，归 FormatControlRule 或 OutputFormatDeduplicatorRule
 
 **已知局限：**
 - 第一版仍可能把全大写文本中的专有名词改成小写，例如 `JAVA` → `java`
@@ -601,7 +602,7 @@ actually
 - 不处理非连续重复
 - 不处理语义相似但文字不同的短语
 - 不处理语义重复的输出约束，未来归 ConstraintDeduplicatorRule
-- 不处理格式要求去重，未来归 OutputFormatDeduplicatorRule
+- 不处理格式要求去重，归 OutputFormatDeduplicatorRule
 - 不处理空格和空行，归 StructureMinimizerRule
 - 不处理标点规范化，归 PunctuationNormalizerRule
 - 不处理冗长短语等价替换，归 SemanticCompressorRule
@@ -716,7 +717,52 @@ actually
 
 ## 三、Level 2 优化规则
 
-### 3.1 SentenceBudgetRule
+### 3.1 OutputFormatDeduplicatorRule
+✅ 已完成并测试
+
+**功能说明：**
+删除重复输出格式要求，同时保留每种格式类型第一次出现的要求。它和 `FormatControlRule` 互补：本规则负责去重，`FormatControlRule` 负责把部分格式指令压缩成更短符号。
+
+**当前支持格式类型：**
+- `BULLET_LIST`
+- `NUMBERED_LIST`
+- `TABLE`
+- `JSON`
+- `MARKDOWN`
+- `CODE_BLOCK`
+
+**执行逻辑：**
+1. inputText 为 null 时视为空字符串
+2. 使用 `ProtectedTextProcessor`，只处理 Markdown fenced code blocks 和 inline code 之外的普通文本
+3. 将普通文本按保守英文句子规则切分
+4. 判断每个句子是否是输出格式要求，并映射到 format type
+5. 每个 format type 保留第一次出现的句子
+6. 删除同一 format type 后续重复句子
+7. 不同 format type 之间不会互相去重
+
+**Changes 消息：**
+- 首次保留：`[outputFormatDeduplicator] 保留格式要求 BULLET_LIST: "..."`
+- 删除重复：`[outputFormatDeduplicator] 删除重复格式要求 BULLET_LIST: "..."`
+- 删除完成：`[outputFormatDeduplicator] 共删除 N 个重复输出格式要求`
+- 无重复：`[outputFormatDeduplicator] 未检测到重复输出格式要求`
+
+**Scope boundary:**
+- 只处理重复输出格式要求
+- 不做 AI 语义级去重
+- 不做格式冲突检测，例如 JSON 和 bullet points 可以同时保留
+- 不删除不同 format type 之间的要求
+- 不修改 Markdown fenced code blocks 或 inline code
+
+**验证用例：**
+- 输入：`"Explain recursion. Please use bullet points. Answer as a list. Give me bullet points."`
+- 期望输出：`"Explain recursion. Please use bullet points."`
+
+**执行顺序：**
+当前注册顺序为：`OutputFormatDeduplicatorRule → SentenceBudgetRule → LengthControlRule → FormatControlRule`。
+
+---
+
+### 3.2 SentenceBudgetRule
 ✅ 已完成并测试
 
 **功能说明：**
@@ -760,7 +806,7 @@ actually
 
 ---
 
-### 3.2 LengthControlRule
+### 3.3 LengthControlRule
 ✅ 已实现（real algorithm）
 
 **参数**：`maxWords`（int，默认 50；若传入 ≤ 0 则重置为 50）
@@ -798,7 +844,7 @@ actually
 
 ---
 
-### 3.3 FormatControlRule
+### 3.4 FormatControlRule
 ✅ 已实现（real algorithm）
 
 **完整替换列表**（`FormatControlRule.java`，全局大小写不敏感）：
@@ -901,6 +947,7 @@ actually
     "taskAnalyzer":         { "enabled": true,  "params": {} },
     "semanticCompressor":   { "enabled": true,  "params": { "compressionLevel": 50 } },
     "structureMinimizer":   { "enabled": true,  "params": {} },
+    "outputFormatDeduplicator": { "enabled": true, "params": {} },
     "lengthControl":        { "enabled": true,  "params": { "maxWords": 50 } },
     "formatControl":        { "enabled": true,  "params": {} }
   }
@@ -956,6 +1003,7 @@ Content-Type: application/json
     "taskAnalyzer": { "enabled": false, "params": {} },
     "semanticCompressor": { "enabled": false, "params": {} },
     "structureMinimizer": { "enabled": false, "params": {} },
+    "outputFormatDeduplicator": { "enabled": false, "params": {} },
     "lengthControl": { "enabled": false, "params": {} },
     "formatControl": { "enabled": false, "params": {} }
   }
@@ -1028,6 +1076,7 @@ Content-Type: application/json
   { "id": "duplicatePhraseReducer", "name": "Duplicate Phrase Reducer", "level": "Level 1", "description": "Removes consecutive duplicated words or short phrases" },
   { "id": "punctuationNormalizer", "name": "Punctuation Normalizer", "level": "Level 1", "description": "Removes repeated punctuation and normalises ellipses" },
   { "id": "numberNormalizer", "name": "Number Normalizer", "level": "Level 1", "description": "Converts written English numbers to Arabic numerals" },
+  { "id": "outputFormatDeduplicator", "name": "Output Format Deduplicator", "level": "Level 2", "description": "Removes repeated output-format instructions while keeping the first one" },
   { "id": "sentenceBudget",    "name": "Sentence Budget",       "level": "Level 2", "description": "Limits prompt length by sentence count before word truncation" },
   { "id": "lengthControl",      "name": "Length Control",       "level": "Level 2", "description": "Truncates text that exceeds the max-words budget" },
   { "id": "formatControl",      "name": "Format Control",       "level": "Level 2", "description": "Converts verbose formatting instructions to compact symbols" }
