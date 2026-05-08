@@ -1,4 +1,4 @@
-# BetterPrompt 功能清单 v1.5.5
+# BetterPrompt 功能清单 v1.5.7
 
 > 本文档根据实际代码生成，记录项目每个功能的实现状态、细节和验证方式。
 > 更新规则：每完成或修改一个功能，同步更新对应条目。
@@ -11,12 +11,12 @@
 |------|--------|-----------|--------------|----------|
 | 后端核心框架 | 4 | 3 | 1 | 0 |
 | Level 1 优化规则 | 9 | 7 | 2 | 0 |
-| Level 2 优化规则 | 3 | 1 | 2 | 0 |
+| Level 2 优化规则 | 4 | 2 | 2 | 0 |
 | Prompt Generator | 2 | 2 | 0 | 0 |
 | REST API | 4 | 4 | 0 | 0 |
 | 前端 UI | 5 | 5 | 0 | 0 |
 | 质量对比（Quality Check） | 6 | 6 | 0 | 0 |
-| **合计** | **33** | **27** | **6** | **0** |
+| **合计** | **34** | **28** | **6** | **0** |
 
 ---
 
@@ -54,13 +54,23 @@
 3. 按 `RuleRegistryConfig` 注入的列表顺序遍历每条 Rule：
    - 若该 Rule 的 `RuleConfig` 为 null，或 `config.isEnabled() == false` → 构建"skipped" StepResult（inputText=outputText=currentText，tokensSaved=0，changes=`["[SKIPPED] Rule is disabled"]`），`currentText` 不变
    - 否则 → 调用 `rule.apply(currentText, config)`，将返回的 StepResult 的 status 设为 `"done"`，用 `step.getOutputText()` 更新 `currentText`（若 outputText 为 null 则 currentText 不变）
+   - 若单条 Rule 抛出异常 → RuleEngine 构建 `status="error"` 的 StepResult，inputText/outputText 均保持为当前 `currentText`，tokensSaved=0，记录错误 changes，后续 Rule 继续执行
 4. 对最终 `currentText` 调用 `TokenCounter.count()` 得 `finalTokens`
 5. 计算压缩率：`Math.round((1.0 - finalTokens / originalTokens) * 1000.0) / 10.0`（保留一位小数），originalTokens=0 时压缩率为 0.0
 6. 构建 `OptimizationResult`（steps 列表、finalPrompt、tokenStats）并返回
 
 **byRule 贡献度 Map**：key 为 `rule.getRuleName()`，value 为 `Math.max(0, step.getTokensSaved())`（负值（TaskAnalyzer 追加 tag 时）记为 0）
 
-**验证方式**：POST /api/optimize，传入包含多条规则的请求；检查响应中 steps 数组长度等于注册规则数（13），跳过的 rules status="skipped"，执行的 rules status="done"
+**验证方式**：POST /api/optimize，传入包含多条规则的请求；检查响应中 steps 数组长度等于注册规则数（13），跳过的 rules status="skipped"，执行的 rules status="done"，单条规则失败时返回 status="error" 且 pipeline 不会中断
+
+### 1.2.1 RuleConfig（规则参数配置）
+✅ 已完成并测试
+
+**参数读取能力**：
+- `isEnabled()`：判断 Rule 是否启用
+- `getIntParam(String key, int defaultValue)`：读取整数参数
+- `getDoubleParam(String key, double defaultValue)`：读取浮点参数
+- `getBooleanParam(String key, boolean defaultValue)`：读取布尔参数，供 `DuplicateSentenceRemoverRule`、`DuplicatePhraseReducerRule` 等规则复用统一逻辑
 
 ---
 
@@ -137,7 +147,7 @@
 ---
 
 ### 1.5 Protected Text Safety Layer
-✅ 部分完成（v1.5.5）
+✅ 部分完成（v1.5.7）
 
 **实现位置：**
 - `src/main/java/com/betterprompt/betterpromptbyandyy2/optimizer/util/ProtectedTextProcessor.java`
@@ -154,9 +164,10 @@
 - `PunctuationNormalizerRule`
 - `NumberNormalizerRule`
 - `SemanticCompressorRule`
+- `FormatControlRule`
 
 **行为说明：**
-- 上述高风险 Level 1 文本转换规则只处理 protected regions 之外的普通自然语言文本
+- 上述高风险文本转换规则只处理 protected regions 之外的普通自然语言文本；`FormatControlRule` 也已接入该保护层
 - fenced code blocks 和 inline code 会保持 byte-for-byte unchanged
 - protected regions 之外的普通文本仍然可以被正常优化
 - 该能力是共享 utility layer，不是单独的前端规则卡片，也不是独立 pipeline rule
@@ -183,6 +194,7 @@
 - `PunctuationNormalizerRuleTest`
 - `NumberNormalizerRuleTest`
 - `SemanticCompressorRuleTest`
+- `FormatControlRuleTest`
 - Focused protected Markdown regression suite passes
 - `mvn -DskipTests compile` passes
 - Full `mvn test` is blocked by the existing Spring context test requiring `OPENAI_API_KEY`; unrelated to protected text
@@ -847,6 +859,11 @@ actually
 ### 3.4 FormatControlRule
 ✅ 已实现（real algorithm）
 
+**v1.5.7 更新**：
+- 已接入 `ProtectedTextProcessor`
+- Markdown fenced code blocks 和 inline code 内的格式字符串保持 byte-for-byte unchanged
+- 只在 protected regions 外部执行格式替换
+
 **完整替换列表**（`FormatControlRule.java`，全局大小写不敏感）：
 
 | 原始字符串 | 替换为 |
@@ -864,6 +881,7 @@ actually
 
 **Scope boundary**:
 - 只处理**输出格式指令词到符号的替换**(如 "bullet points:" → "•","numbered list:" → "1.")
+- 已保护 Markdown fenced code blocks 和 inline code，只处理 protected regions 外部文本
 - 不处理:**一般冗长短语的语义压缩**,归 SemanticCompressorRule
 - 不处理:**社交性填充语**,归 FillerRemovalRule
 - 判定原则:**目标是改变输出形式(列表/加粗/代码块等)而非语义内容**才属于本规则
@@ -1069,7 +1087,7 @@ Content-Type: application/json
 [
   { "id": "fillerRemoval",      "name": "Filler Removal",       "level": "Level 1", "description": "Removes greetings, polite openers, mid-text fillers, and closing remarks" },
   { "id": "caseNormalizer",     "name": "Case Normalizer",      "level": "Level 1", "description": "Normalizes clearly all-uppercase prompts into sentence case" },
-  { "id": "taskAnalyzer",       "name": "Task Analyzer",        "level": "Level 1", "description": "Classifies task type and complexity" },
+  { "id": "taskAnalyzer",       "name": "Task Analyzer",        "level": "Level 1", "description": "Classifies task type and complexity without modifying the prompt" },
   { "id": "semanticCompressor", "name": "Semantic Compressor",  "level": "Level 1", "description": "Replaces verbose phrases with concise equivalents" },
   { "id": "structureMinimizer", "name": "Structure Minimizer",  "level": "Level 1", "description": "Removes redundant whitespace and normalises text structure" },
   { "id": "duplicateSentenceRemover", "name": "Duplicate Sentence Remover", "level": "Level 1", "description": "Removes fully duplicated sentences from the prompt" },
@@ -1083,7 +1101,7 @@ Content-Type: application/json
 ]
 ```
 
-**用途**：前端可用此接口动态渲染规则配置面板（当前前端硬编码了 12 条规则的 HTML，未实际调用此接口）
+**用途**：前端可用此接口动态渲染规则配置面板（当前前端硬编码了 13 条规则的 HTML，未实际调用此接口）
 
 ---
 
@@ -1108,7 +1126,7 @@ Content-Type: application/json
 
 **策略选择面板**（右栏）：
 - Level 1 块（蓝色标题 badge）：4 条规则
-- Level 2 块（红色标题 badge）：3 条规则
+- Level 2 块（红色标题 badge）：4 条规则
 - Toggle 开关：切换后调用 `toggleRule()`，禁用的规则卡片添加 `.disabled` CSS 类
 - LOW/MID/HIGH 三档按钮：点击后当前档按钮添加 `.active` CSS 类，调用 `setTierParam()` 更新 `state.rules`；默认激活 MID（aggressiveness=50，compressionLevel=50）
 - Length Control 的 Max Words：`<input type="number">` 默认值 50，range 10-500，实时更新 `state.rules.lengthControl.params.maxWords`
@@ -1183,7 +1201,9 @@ Content-Type: application/json
 - 降级方案：创建临时 textarea + `document.execCommand('copy')`
 - 复制成功后按钮文本变为 `✓ Copied!` 并添加 `.copied` CSS 类，2000ms 后恢复
 
-**底部按钮**：`🔄 Optimize Again`（返回 Page 1 保留文本）、`✨ New Prompt`（清空所有状态返回 Page 1）、`Run Quality Check →`（跳转 Page 4 触发质量对比）
+**顶部操作区**：与 `Back to Pipeline`、`Start Over` 放在同一操作区，提供 `Run Quality Check →`，点击后进入 Page 4。
+
+**底部按钮**：v1.5.7 已移除旧的 `Optimize Again` 和 `New Prompt` 入口，减少重复操作入口，Page 3 专注展示 Token Analysis。
 
 ---
 
@@ -1329,7 +1349,7 @@ optimizationScore = (efficiencyAfter - efficiencyBefore) / efficiencyBefore × 1
 3. **AI 分析卡片**：蓝色左边框，浅蓝背景，展示 naturalSummary
 4. **Token Efficiency Gain 综合卡片**：大字号显示 `optimizationScore`（正数绿色 `+XX.XX%`，负数红色，零灰色）+ verdict 色块（四色对应四级）+ token 节省百分比说明
 
-**入口**：Page 3（Token Analysis）底部的 `Run Quality Check →` 按钮；点击后直接操作 DOM 跳转至 page-4，不经过 goToPage 导航守卫
+**入口**：Page 3（Token Analysis）顶部操作区的 `Run Quality Check →` 按钮；点击后直接操作 DOM 跳转至 page-4，不经过 goToPage 导航守卫
 
 ---
 

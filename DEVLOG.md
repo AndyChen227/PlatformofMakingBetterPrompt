@@ -14,10 +14,10 @@
 
 （每次更新都要更新这一栏）
 
-- 当前版本：v1.5.6
-- 当前阶段：Output Format Deduplicator 已加入 Level 2；重复输出格式要求会保留首个、删除后续重复项
+- 当前版本：v1.5.7
+- 当前阶段：Pipeline Stability Cleanup 已完成；RuleEngine 支持单条规则失败隔离，FormatControlRule 已接入 ProtectedTextProcessor，RuleConfig 参数读取能力增强。
 - 已完成模块数：14/14（Level 1 + Level 2 + Quality Check + AI Generate + Sentence Budget + Duplicate Sentence Remover + Case Normalizer + Duplicate Phrase Reducer + Protected Text Safety Layer）
-- 下一步：继续评估格式冲突检测、quoted text、未 fenced JSON-like blocks、Markdown tables 等后续保护范围
+- 下一步：准备实现 Constraint Deduplicator，去除重复输出约束。
 
 ---
 
@@ -345,6 +345,26 @@
 
 ---
 
+### ✅ v1.5.7 — Pipeline Stability Cleanup
+
+产出：
+- `RuleEngine` 增加 rule-level try-catch
+- 单条 rule 失败时生成 `status="error"` 的 `StepResult`，`currentText` 保持不变，后续 rule 继续执行
+- `RuleConfig` 新增 `getBooleanParam(String key, boolean defaultValue)`
+- `DuplicateSentenceRemoverRule` / `DuplicatePhraseReducerRule` 复用统一 boolean 参数读取
+- `TaskAnalyzerRule` description 修正，不再暗示会 append metadata tag
+- `FormatControlRule` 接入 `ProtectedTextProcessor`，只处理 code 外部文本
+- `StructureMinimizerRule` change messages 统一添加 `[structureMinimizer]` 前缀
+- Page 3 Token Analysis UI 精简：`Run Quality Check` 移到顶部，删除底部 `Optimize Again` / `New Prompt`
+
+验证：
+- Maven wrapper compile BUILD SUCCESS
+- 页面可正常启动和优化
+
+状态：Pipeline Stability Cleanup 已完成，未新增新 rule
+
+---
+
 ## 待完成功能
 
 | 功能 | 优先级 | 说明 |
@@ -379,6 +399,7 @@
 | 2026/4/30 | DuplicatePhraseReducerRule 第一版只处理连续重复短语 | 为避免误删用户真实意图，第一版仅处理 exact adjacent duplicate unigram/bigram/trigram，不做语义相似判断；前端 diff 高亮问题后续作为独立 UI 优化处理 |
 | 2026/5/1 | 文档版本号体系统一至标准三段式 major.minor.patch | major 留给架构级新维度（Level 3 = v2.0.0，Level 4/5 = v3.0.0）；minor 留给独立新功能模块（Generator / UI 重构 / Quality Check / AI Generate / BPE Tokenizer）；patch 留给单条规则上线。git tag 历史（v1.0.4 / v3.0）保留，文档归文档、tag 归 tag。 |
 | 2026/5/3 | Protected Text Safety Layer 采用共享工具类而不是普通 pipeline rule | 当前 Rule interface 只传递 String input/output，不携带 shared pipeline context；共享 `ProtectedTextProcessor` 可以让高风险规则在本地跳过 fenced code blocks 和 inline code。未来若引入 PipelineContext，可考虑 Protector/Restorer architecture。 |
+| 2026/5/8 | RuleEngine 增加 rule-level fault isolation | 单条规则失败不应中断完整优化链路；记录 `status="error"` StepResult 并保持 currentText 不变，可以保留可审计性并让后续规则继续工作。 |
 
 ---
 
@@ -432,8 +453,7 @@
 
 ## 下一步行动
 
-1. 评估 CodeBlockProtectorRule 后续扩展范围（quoted text、JSON-like blocks、Markdown tables）
-2. 评估格式冲突检测与 Constraint Deduplicator 的优先级
+1. 准备实现 Constraint Deduplicator，去除重复输出约束。
 
 ---
 

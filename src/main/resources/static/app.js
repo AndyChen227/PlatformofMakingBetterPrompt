@@ -955,20 +955,6 @@ function startOver() {
   goToPage(1);
 }
 
-function optimizeAgain() {
-  goToPage(1);
-}
-
-function newPrompt() {
-  state.prompt = '';
-  state.result = null;
-  state.completedPages.clear();
-  $('promptTextarea').value = '';
-  updateCounts();
-  $('navStatus').textContent = '';
-  goToPage(1);
-}
-
 // ═══════════════════════════════════════════════════════════════
 // MODAL
 // ═══════════════════════════════════════════════════════════════

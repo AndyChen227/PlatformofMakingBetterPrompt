@@ -59,7 +59,7 @@ This project models the optimization process as a **configurable pipeline of dis
 - Aggregate compression statistics: original tokens, final tokens, compression rate
 - Bar chart showing token savings broken down by rule
 - Applied rules displayed as chips
-- Actions to re-optimize, reset, or proceed to Quality Check
+- Page 3 focuses on token analysis and provides a top-level action to run Quality Check
 
 **Page 4 — Quality Check**
 - Side-by-side display of ChatGPT's responses to the original and optimized prompts
@@ -90,9 +90,10 @@ The built-in generator produces "dirty" prompts — intentionally verbose, polit
 | 7 | Duplicate Phrase Reducer | Level 1 | `maxPhraseLength`, `caseInsensitive` |
 | 8 | Punctuation Normalizer | Level 1 | — |
 | 9 | Number Normalizer | Level 1 | — |
-| 10 | Sentence Budget | Level 2 | `maxSentences` (integer) |
-| 11 | Length Control | Level 2 | `maxWords` (integer) |
-| 12 | Format Control | Level 2 | — |
+| 10 | Output Format Deduplicator | Level 2 | — |
+| 11 | Sentence Budget | Level 2 | `maxSentences` (integer) |
+| 12 | Length Control | Level 2 | `maxWords` (integer) |
+| 13 | Format Control | Level 2 | — |
 
 ### Pipeline Visualization
 
@@ -146,10 +147,10 @@ Every optimization run produces a full audit trail. The frontend renders each ru
 │             │                                                      │
 │   ┌─────────┴──────────────────────────────────────────────────┐  │
 │   │  Level 1                          Level 2                  │  │
-│   │  ├── FillerRemovalRule            ├── SentenceBudgetRule   │  │
-│   │  ├── CaseNormalizerRule           ├── LengthControlRule    │  │
-│   │  ├── TaskAnalyzerRule             └── FormatControlRule    │  │
-│   │  ├── SemanticCompressorRule                                │  │
+│   │  ├── FillerRemovalRule            ├── OutputFormatDeduplicatorRule │  │
+│   │  ├── CaseNormalizerRule           ├── SentenceBudgetRule   │  │
+│   │  ├── TaskAnalyzerRule             ├── LengthControlRule    │  │
+│   │  ├── SemanticCompressorRule       └── FormatControlRule    │  │
 │   │  ├── StructureMinimizerRule                                │  │
 │   │  ├── DuplicateSentenceRemoverRule                          │  │
 │   │  ├── DuplicatePhraseReducerRule                            │  │
@@ -179,7 +180,7 @@ Each rule is a fully encapsulated strategy. The engine does not need to know how
 
 **Chain of Responsibility — `RuleEngine`**
 
-`RuleEngine` iterates the registered `List<Rule>` in order. The output of each rule becomes the input of the next. If a rule is disabled, the engine passes the text through unchanged and marks the step as `skipped`. The chain produces a complete audit trail of `StepResult` objects, one per rule.
+`RuleEngine` iterates the registered `List<Rule>` in order. The output of each successful rule becomes the input of the next. If a rule is disabled, the engine passes the text through unchanged and marks the step as `skipped`. If a single rule throws, the engine records a `status="error"` `StepResult`, keeps the current text unchanged, and continues with the remaining rules. The chain produces a complete audit trail of `StepResult` objects, one per rule.
 
 **Registry / IoC — `RuleRegistryConfig`**
 
@@ -245,7 +246,7 @@ BetterPromptByAndyy2.0/
     │   └── resources/
     │       ├── application.properties              # Port, app name, OpenAI API config
     │       └── static/
-    │           ├── index.html                      # 3-page SPA shell
+    │           ├── index.html                      # 4-page SPA shell
     │           ├── style.css                       # Material Design styles (pure CSS)
     │           └── app.js                          # UI state management, DOM, API calls
     │
@@ -415,11 +416,11 @@ Skips Markdown fenced code blocks and inline code through `ProtectedTextProcesso
 
 #### Protected Text Safety Layer
 
-`ProtectedTextProcessor` is a shared safety utility used by the high-risk Level 1 text transformation rules. It is not a frontend-visible rule card and not an independent pipeline rule.
+`ProtectedTextProcessor` is a shared safety utility used by the high-risk text transformation rules, including the protected Level 1 path and `FormatControlRule`. It is not a frontend-visible rule card and not an independent pipeline rule.
 
 Current scope: fenced code blocks using triple backticks and inline code wrapped in single backticks. These protected regions are preserved byte-for-byte while normal natural-language text outside those regions can still be optimized.
 
-Current protected rules: `CaseNormalizerRule`, `StructureMinimizerRule`, `DuplicateSentenceRemoverRule`, `DuplicatePhraseReducerRule`, `PunctuationNormalizerRule`, `NumberNormalizerRule`, and `SemanticCompressorRule`.
+Current protected rules: `CaseNormalizerRule`, `StructureMinimizerRule`, `DuplicateSentenceRemoverRule`, `DuplicatePhraseReducerRule`, `PunctuationNormalizerRule`, `NumberNormalizerRule`, `SemanticCompressorRule`, and `FormatControlRule`.
 
 Out of scope: quoted text, Markdown tables, JSON-like blocks outside fenced code, and custom delimiters.
 
@@ -457,7 +458,7 @@ Acts as the final hard word-budget guard. If the prompt still exceeds `maxWords`
 
 #### 13. Format Control
 
-Replaces verbose, human-readable formatting instructions with their compact symbol equivalents.
+Replaces verbose, human-readable formatting instructions with their compact symbol equivalents. Markdown fenced code blocks and inline code are skipped through `ProtectedTextProcessor`, so format strings inside protected code regions remain unchanged.
 
 | Verbose instruction | Compact replacement |
 |---------------------|---------------------|
@@ -642,7 +643,7 @@ Returns metadata for all registered rules in pipeline order.
     "id": "taskAnalyzer",
     "name": "Task Analyzer",
     "level": "Level 1",
-    "description": "Classifies task type and complexity"
+    "description": "Classifies task type and complexity without modifying the prompt"
   },
   {
     "id": "semanticCompressor",
@@ -807,6 +808,7 @@ Open `http://localhost:8080` in your browser.
 - [x] v1.5.4 — DuplicatePhraseReducerRule (remove consecutive duplicated short phrases)
 - [x] v1.5.5 — Protected Text Safety Layer (shared `ProtectedTextProcessor`; high-risk Level 1 text rules skip fenced code blocks and inline code)
 - [x] v1.5.6 — OutputFormatDeduplicatorRule (remove repeated output-format instructions before sentence/length budgets)
+- [x] v1.5.7 — Pipeline Stability Cleanup (rule-level fault isolation, `RuleConfig.getBooleanParam`, FormatControl protected text support, Page 3 action cleanup)
 - [ ] v2.0.0 — Level 3: context optimization (deduplication, reference compression)
 - [ ] v3.0.0 — Level 4 & 5: system-level optimization (system prompt factoring, conversation compression)
 
@@ -850,7 +852,13 @@ in the UI.
 
 v1.5.5 protects Markdown fenced code blocks and inline code inside the high-risk Level 1 transformation rules themselves. This is implemented as `ProtectedTextProcessor`, not as a separate frontend rule card or normal pipeline rule, because the current `Rule` interface only passes String input/output and does not carry shared pipeline context.
 
-The current scope is deliberately partial: fenced code blocks and inline code are preserved byte-for-byte, while normal text outside those regions can still be optimized. Quoted text, Markdown tables, JSON-like blocks outside fenced code, and custom delimiters remain future work. A future Protector/Restorer architecture could be considered if `PipelineContext` is introduced.
+The current scope is deliberately partial: fenced code blocks and inline code are preserved byte-for-byte, while normal text outside those regions can still be optimized. v1.5.7 extends this protection to `FormatControlRule` as well as the high-risk Level 1 text rules. Quoted text, Markdown tables, JSON-like blocks outside fenced code, and custom delimiters remain future work. A future Protector/Restorer architecture could be considered if `PipelineContext` is introduced.
+
+### Why isolate individual rule failures?
+
+v1.5.7 makes `RuleEngine` fault-tolerant at the rule level. A single failed rule now produces a `status="error"` step, leaves `currentText` unchanged, and lets later rules continue. This keeps one narrow regression from taking down the whole optimization pipeline and preserves the per-step audit trail for debugging.
+
+Boolean rule parameters are also centralized through `RuleConfig.getBooleanParam(String key, boolean defaultValue)`, so rules such as `DuplicateSentenceRemoverRule` and `DuplicatePhraseReducerRule` share one consistent parameter-reading path.
 
 ### Why LOW / MID / HIGH instead of exposing raw numeric parameters?
 

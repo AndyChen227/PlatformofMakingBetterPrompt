@@ -15,17 +15,17 @@
 | 大小写规范化 | Case Normalizer | 保守修复明显全大写 prompt，使文本更稳定、更易读 | 输入优化 | 第一阶段 | 已完成 |
 | 重复句删除 | Duplicate Sentence Remover | 删除 prompt 中重复出现的完整句子，减少重复表达造成的 token 浪费 | 输入优化 | 第一阶段 | 已完成 |
 | 重复短语压缩 | Duplicate Phrase Reducer | 删除同一句内部重复出现的词组或短语 | 输入优化 | 第一阶段 | 已完成 |
-| 代码块保护 | Code Block Protector | 通过共享 `ProtectedTextProcessor` 保护 Markdown fenced code blocks 和 inline code，避免高风险 Level 1 文本转换规则误改代码内容 | 输入优化 | 第一阶段 | 部分完成 |
+| 代码块保护 | Code Block Protector | 通过共享 `ProtectedTextProcessor` 保护 Markdown fenced code blocks 和 inline code，避免高风险 Level 1 文本转换规则和 `FormatControlRule` 误改代码内容 | 输入优化 | 第一阶段 | 部分完成 |
 | 引用文本保护 | Quoted Text Protector | 保护引号内文本，避免用户明确引用的内容被误改 | 输入优化 | 第一阶段 | 未完成 |
 
-> 当前实现说明：代码块保护不是单独的前端规则卡片，也不是独立 pipeline rule；它由 `ProtectedTextProcessor` 作为共享 utility layer 提供。目前已覆盖 Markdown fenced code blocks 和 inline code，并接入 Case / Structure / Duplicate Sentence / Duplicate Phrase / Punctuation / Number / Semantic 七个高风险 Level 1 文本转换规则。protected regions 保持 byte-for-byte unchanged，普通文本仍可优化。JSON-like blocks outside fenced code、Markdown tables、quoted text 和自定义 delimiter 仍属于后续升级范围。
+> 当前实现说明：代码块保护不是单独的前端规则卡片，也不是独立 pipeline rule；它由 `ProtectedTextProcessor` 作为共享 utility layer 提供。目前已覆盖 Markdown fenced code blocks 和 inline code，并接入 Case / Structure / Duplicate Sentence / Duplicate Phrase / Punctuation / Number / Semantic 七个高风险 Level 1 文本转换规则，以及 Level 2 的 `FormatControlRule`。protected regions 保持 byte-for-byte unchanged，普通文本仍可优化。JSON-like blocks outside fenced code、Markdown tables、quoted text 和自定义 delimiter 仍属于后续升级范围。
 
 ## 结构控制 — 控制 prompt 整体的长度和格式
 
 | 功能名称 | 英文名称 | 功能说明 | 类型 | 阶段 | 完成情况 |
 |---------|---------|---------|------|------|---------|
 | 长度限制 | Length Control | 超过设定字数上限时作为最终兜底规则自动截断 | 结构控制 | 第二阶段 | 待升级 |
-| 格式压缩 | Format Control | 把格式指令换成更短的符号表示 | 结构控制 | 第二阶段 | 待升级 |
+| 格式压缩 | Format Control | 把格式指令换成更短的符号表示，并通过 `ProtectedTextProcessor` 避免误改 fenced code blocks 和 inline code | 结构控制 | 第二阶段 | 部分完成 |
 | 句子数量限制 | Sentence Budget | 按最大句子数限制 prompt 长度，超过设定句数时自动截断 | 结构控制 | 第二阶段 | 已完成 |
 | 输出格式去重 | Output Format Deduplicator | 去除重复的输出格式要求，例如重复的列表、表格、JSON、Markdown 或代码块格式要求，保留每种格式第一次出现的要求 | 结构控制 | 第二阶段 | 已完成 |
 | 输出约束去重 | Constraint Deduplicator | 去除语义重复的输出约束，例如简洁、详细、一步步等重复要求 | 结构控制 | 第二阶段 | 未完成 |
