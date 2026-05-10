@@ -21,6 +21,7 @@ const state = {
     punctuationNormalizer:  { enabled: true,  params: {} },
     numberNormalizer:       { enabled: true,  params: {} },
     outputFormatDeduplicator: { enabled: true, params: {} },
+    constraintDeduplicator: { enabled: true, params: {} },
     sentenceBudget:         { enabled: true,  params: { maxSentences: 3 } },
     lengthControl:          { enabled: true,  params: { maxWords: 50 } },
     formatControl:          { enabled: true,  params: {} },
@@ -42,6 +43,7 @@ const RULE_ORDER = [
   'punctuationNormalizer',
   'numberNormalizer',
   'outputFormatDeduplicator',
+  'constraintDeduplicator',
   'sentenceBudget',
   'lengthControl',
   'formatControl',
@@ -52,7 +54,7 @@ const RULE_LEVEL = {
   semanticCompressor: 'l1', structureMinimizer: 'l1',
   duplicateSentenceRemover: 'l1', duplicatePhraseReducer: 'l1',
   punctuationNormalizer: 'l1', numberNormalizer: 'l1',
-  outputFormatDeduplicator: 'l2', sentenceBudget: 'l2',
+  outputFormatDeduplicator: 'l2', constraintDeduplicator: 'l2', sentenceBudget: 'l2',
   lengthControl: 'l2', formatControl: 'l2',
 };
 
@@ -221,6 +223,20 @@ const RULE_INFO = {
       'Semantic similarity matching for paraphrased format requests',
       'Conflict detection for incompatible formats such as JSON and bullet points',
       'Stronger multilingual support',
+    ],
+  },
+  constraintDeduplicator: {
+    name: 'Constraint Deduplicator',
+    level: 'Level 2',
+    levelClass: 'badge-red',
+    what: 'Removes repeated output constraints such as concise, detailed, step-by-step, simple, or examples requests while keeping the first one.',
+    hasParams: false,
+    exBefore: 'Explain recursion. Be concise. Keep it short. Give examples. Include examples.',
+    exAfter: 'Explain recursion. Be concise. Give examples.',
+    future: [
+      'Semantic similarity matching for paraphrased constraints',
+      'Multilingual constraint detection',
+      'Conflict detection such as concise vs detailed',
     ],
   },
   sentenceBudget: {

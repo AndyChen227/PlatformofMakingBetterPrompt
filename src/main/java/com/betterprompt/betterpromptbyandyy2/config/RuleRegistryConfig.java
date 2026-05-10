@@ -10,6 +10,7 @@ import com.betterprompt.betterpromptbyandyy2.optimizer.level1.NumberNormalizerRu
 import com.betterprompt.betterpromptbyandyy2.optimizer.level1.PunctuationNormalizerRule;
 import com.betterprompt.betterpromptbyandyy2.optimizer.level1.StructureMinimizerRule;
 import com.betterprompt.betterpromptbyandyy2.optimizer.level1.TaskAnalyzerRule;
+import com.betterprompt.betterpromptbyandyy2.optimizer.level2.ConstraintDeduplicatorRule;
 import com.betterprompt.betterpromptbyandyy2.optimizer.level2.FormatControlRule;
 import com.betterprompt.betterpromptbyandyy2.optimizer.level2.LengthControlRule;
 import com.betterprompt.betterpromptbyandyy2.optimizer.level2.OutputFormatDeduplicatorRule;
@@ -60,6 +61,7 @@ public class RuleRegistryConfig {
 
             // ── Level 2: Output Control ────────────────────────────────
             new OutputFormatDeduplicatorRule(), // Remove repeated output-format instructions
+            new ConstraintDeduplicatorRule(), // Remove repeated output-constraint instructions
             new SentenceBudgetRule(),     // Limit prompt by sentence count before hard word truncation
             new LengthControlRule(),      // Final hard word-budget guard
             new FormatControlRule()       // Compact formatting instructions
