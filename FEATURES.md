@@ -1,4 +1,4 @@
-# BetterPrompt 功能清单 v1.5.7
+# BetterPrompt 功能清单 v1.5.8
 
 > 本文档根据实际代码生成，记录项目每个功能的实现状态、细节和验证方式。
 > 更新规则：每完成或修改一个功能，同步更新对应条目。
@@ -11,12 +11,12 @@
 |------|--------|-----------|--------------|----------|
 | 后端核心框架 | 4 | 3 | 1 | 0 |
 | Level 1 优化规则 | 9 | 7 | 2 | 0 |
-| Level 2 优化规则 | 4 | 2 | 2 | 0 |
+| Level 2 优化规则 | 5 | 3 | 2 | 0 |
 | Prompt Generator | 2 | 2 | 0 | 0 |
 | REST API | 4 | 4 | 0 | 0 |
 | 前端 UI | 5 | 5 | 0 | 0 |
 | 质量对比（Quality Check） | 6 | 6 | 0 | 0 |
-| **合计** | **34** | **28** | **6** | **0** |
+| **合计** | **35** | **29** | **6** | **0** |
 
 ---
 
@@ -91,9 +91,10 @@
 | 8 | `PunctuationNormalizerRule` | `punctuationNormalizer` | Level 1 |
 | 9 | `NumberNormalizerRule` | `numberNormalizer` | Level 1 |
 | 10 | `OutputFormatDeduplicatorRule` | `outputFormatDeduplicator` | Level 2 |
-| 11 | `SentenceBudgetRule` | `sentenceBudget` | Level 2 |
-| 12 | `LengthControlRule` | `lengthControl` | Level 2 |
-| 13 | `FormatControlRule` | `formatControl` | Level 2 |
+| 11 | `ConstraintDeduplicatorRule` | `constraintDeduplicator` | Level 2 |
+| 12 | `SentenceBudgetRule` | `sentenceBudget` | Level 2 |
+| 13 | `LengthControlRule` | `lengthControl` | Level 2 |
+| 14 | `FormatControlRule` | `formatControl` | Level 2 |
 
 **新增规则的步骤**：
 1. 创建 `YourNewRule.java`，实现 `Rule` 接口（放在 `optimizer/` 下任意子包）
@@ -165,6 +166,7 @@
 - `NumberNormalizerRule`
 - `SemanticCompressorRule`
 - `FormatControlRule`
+- `ConstraintDeduplicatorRule`
 
 **行为说明：**
 - 上述高风险文本转换规则只处理 protected regions 之外的普通自然语言文本；`FormatControlRule` 也已接入该保护层
@@ -558,7 +560,7 @@ actually
 - 只删除完整重复句子
 - 不处理句内重复短语，未来归 DuplicatePhraseReducerRule
 - 不处理语义相似但文字不同的句子
-- 不处理语义重复的输出约束，未来归 ConstraintDeduplicatorRule
+- 不处理语义重复的输出约束，归 ConstraintDeduplicatorRule
 - 不处理空格和空行，归 StructureMinimizerRule
 - 不处理格式要求，归 FormatControlRule 或 OutputFormatDeduplicatorRule
 - 不做摘要
@@ -613,7 +615,7 @@ actually
 - 不处理完整重复句，归 DuplicateSentenceRemoverRule
 - 不处理非连续重复
 - 不处理语义相似但文字不同的短语
-- 不处理语义重复的输出约束，未来归 ConstraintDeduplicatorRule
+- 不处理语义重复的输出约束，归 ConstraintDeduplicatorRule
 - 不处理格式要求去重，归 OutputFormatDeduplicatorRule
 - 不处理空格和空行，归 StructureMinimizerRule
 - 不处理标点规范化，归 PunctuationNormalizerRule
@@ -770,11 +772,57 @@ actually
 - 期望输出：`"Explain recursion. Please use bullet points."`
 
 **执行顺序：**
-当前注册顺序为：`OutputFormatDeduplicatorRule → SentenceBudgetRule → LengthControlRule → FormatControlRule`。
+当前注册顺序为：`OutputFormatDeduplicatorRule → ConstraintDeduplicatorRule → SentenceBudgetRule → LengthControlRule → FormatControlRule`。
 
 ---
 
-### 3.2 SentenceBudgetRule
+### 3.2 ConstraintDeduplicatorRule
+✅ 已完成并测试（v1.5.8）
+
+**功能说明：**
+删除重复的输出约束要求，同时保留每种约束类型第一次出现的句子。它不处理输出格式要求（由 `OutputFormatDeduplicatorRule` 负责）、不处理完全重复句子（由 `DuplicateSentenceRemoverRule` 负责），也不处理冲突指令。
+
+**当前支持约束类型：**
+- `CONCISE`：简洁回答，例如 `Be concise.`、`Keep it short.`、`Make the answer brief.`
+- `DETAILED`：详细回答，例如 `Give a detailed answer.`、`Explain in detail.`
+- `STEP_BY_STEP`：一步步解释，例如 `Explain step by step.`、`Show each step.`
+- `SIMPLE`：简单易懂，例如 `Keep it simple.`、`Use simple language.`
+- `EXAMPLES`：给例子，例如 `Give examples.`、`Include examples.`
+
+**执行逻辑：**
+1. 使用 `ProtectedTextProcessor`，只处理 Markdown fenced code blocks 和 inline code 外部文本
+2. 将普通文本按 sentence-level 切分
+3. 每个句子检测是否属于某个 `ConstraintType`
+4. 每个 `ConstraintType` 第一次出现时保留该句
+5. 同一 `ConstraintType` 后续重复句会被删除
+6. 非 constraint 句子永远保留，不同 constraint type 之间不会互相去重
+
+**Changes 消息：**
+- 保留时：`[constraintDeduplicator] 保留约束 CONCISE: "Be concise."`
+- 删除时：`[constraintDeduplicator] 删除重复约束 CONCISE: "Keep it short."`
+- 删除总结：`[constraintDeduplicator] 共删除 N 个重复输出约束`
+- 无重复：`[constraintDeduplicator] 未检测到重复输出约束`
+- 输入为空：`[constraintDeduplicator] 输入为空，无需处理`
+
+**已知局限：**
+- 只使用规则/正则，不做 LLM 判断
+- 只覆盖当前五类英文输出约束
+- 不做跨语言检测
+- 不做 conflict detection，例如 concise vs detailed 目前会分别保留
+- 不保护 quoted text、JSON-like blocks outside fenced code、Markdown tables
+
+**验证用例：**
+- 输入：`Explain recursion. Be concise. Keep it short. Make the answer brief. Give examples. Include examples. Explain step by step. Show each step.`
+- 期望输出：`Explain recursion. Be concise. Give examples. Explain step by step.`
+- 测试：`ConstraintDeduplicatorRuleTest`
+- 验证结果：compile BUILD SUCCESS，rule test passed
+
+**执行顺序：**
+当前注册顺序为：`OutputFormatDeduplicatorRule → ConstraintDeduplicatorRule → SentenceBudgetRule → LengthControlRule → FormatControlRule`。
+
+---
+
+### 3.3 SentenceBudgetRule
 ✅ 已完成并测试
 
 **功能说明：**
@@ -818,7 +866,7 @@ actually
 
 ---
 
-### 3.3 LengthControlRule
+### 3.4 LengthControlRule
 ✅ 已实现（real algorithm）
 
 **参数**：`maxWords`（int，默认 50；若传入 ≤ 0 则重置为 50）
@@ -856,7 +904,7 @@ actually
 
 ---
 
-### 3.4 FormatControlRule
+### 3.5 FormatControlRule
 ✅ 已实现（real algorithm）
 
 **v1.5.7 更新**：
@@ -1095,13 +1143,14 @@ Content-Type: application/json
   { "id": "punctuationNormalizer", "name": "Punctuation Normalizer", "level": "Level 1", "description": "Removes repeated punctuation and normalises ellipses" },
   { "id": "numberNormalizer", "name": "Number Normalizer", "level": "Level 1", "description": "Converts written English numbers to Arabic numerals" },
   { "id": "outputFormatDeduplicator", "name": "Output Format Deduplicator", "level": "Level 2", "description": "Removes repeated output-format instructions while keeping the first one" },
+  { "id": "constraintDeduplicator", "name": "Constraint Deduplicator", "level": "Level 2", "description": "Removes repeated output constraints while keeping the first one" },
   { "id": "sentenceBudget",    "name": "Sentence Budget",       "level": "Level 2", "description": "Limits prompt length by sentence count before word truncation" },
   { "id": "lengthControl",      "name": "Length Control",       "level": "Level 2", "description": "Truncates text that exceeds the max-words budget" },
   { "id": "formatControl",      "name": "Format Control",       "level": "Level 2", "description": "Converts verbose formatting instructions to compact symbols" }
 ]
 ```
 
-**用途**：前端可用此接口动态渲染规则配置面板（当前前端硬编码了 13 条规则的 HTML，未实际调用此接口）
+**用途**：前端可用此接口动态渲染规则配置面板（当前前端硬编码了 14 条规则的 HTML，未实际调用此接口）
 
 ---
 
@@ -1126,7 +1175,7 @@ Content-Type: application/json
 
 **策略选择面板**（右栏）：
 - Level 1 块（蓝色标题 badge）：4 条规则
-- Level 2 块（红色标题 badge）：4 条规则
+- Level 2 块（红色标题 badge）：5 条规则
 - Toggle 开关：切换后调用 `toggleRule()`，禁用的规则卡片添加 `.disabled` CSS 类
 - LOW/MID/HIGH 三档按钮：点击后当前档按钮添加 `.active` CSS 类，调用 `setTierParam()` 更新 `state.rules`；默认激活 MID（aggressiveness=50，compressionLevel=50）
 - Length Control 的 Max Words：`<input type="number">` 默认值 50，range 10-500，实时更新 `state.rules.lengthControl.params.maxWords`

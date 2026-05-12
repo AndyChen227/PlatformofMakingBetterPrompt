@@ -91,9 +91,12 @@ The built-in generator produces "dirty" prompts — intentionally verbose, polit
 | 8 | Punctuation Normalizer | Level 1 | — |
 | 9 | Number Normalizer | Level 1 | — |
 | 10 | Output Format Deduplicator | Level 2 | — |
-| 11 | Sentence Budget | Level 2 | `maxSentences` (integer) |
-| 12 | Length Control | Level 2 | `maxWords` (integer) |
-| 13 | Format Control | Level 2 | — |
+| 11 | Constraint Deduplicator | Level 2 | — |
+| 12 | Sentence Budget | Level 2 | `maxSentences` (integer) |
+| 13 | Length Control | Level 2 | `maxWords` (integer) |
+| 14 | Format Control | Level 2 | — |
+
+Current rule count: 14.
 
 ### Pipeline Visualization
 
@@ -159,6 +162,8 @@ Every optimization run produces a full audit trail. The frontend renders each ru
 │   └────────────────────────────────────────────────────────────┘  │
 └────────────────────────────────────────────────────────────────── ┘
 ```
+
+Level 2 execution order: `OutputFormatDeduplicatorRule → ConstraintDeduplicatorRule → SentenceBudgetRule → LengthControlRule → FormatControlRule`.
 
 ### Design Patterns
 
@@ -253,6 +258,8 @@ BetterPromptByAndyy2.0/
     └── test/
         └── java/.../ApplicationTests.java          # Spring context load test
 ```
+
+Project structure note: `src/main/java/com/betterprompt/betterpromptbyandyy2/optimizer/level2/ConstraintDeduplicatorRule.java` implements the Level 2 constraint deduplication rule.
 
 ---
 
@@ -416,11 +423,11 @@ Skips Markdown fenced code blocks and inline code through `ProtectedTextProcesso
 
 #### Protected Text Safety Layer
 
-`ProtectedTextProcessor` is a shared safety utility used by the high-risk text transformation rules, including the protected Level 1 path and `FormatControlRule`. It is not a frontend-visible rule card and not an independent pipeline rule.
+`ProtectedTextProcessor` is a shared safety utility used by the high-risk text transformation rules, including the protected Level 1 path, `FormatControlRule`, and `ConstraintDeduplicatorRule`. It is not a frontend-visible rule card and not an independent pipeline rule.
 
 Current scope: fenced code blocks using triple backticks and inline code wrapped in single backticks. These protected regions are preserved byte-for-byte while normal natural-language text outside those regions can still be optimized.
 
-Current protected rules: `CaseNormalizerRule`, `StructureMinimizerRule`, `DuplicateSentenceRemoverRule`, `DuplicatePhraseReducerRule`, `PunctuationNormalizerRule`, `NumberNormalizerRule`, `SemanticCompressorRule`, and `FormatControlRule`.
+Current protected rules: `CaseNormalizerRule`, `StructureMinimizerRule`, `DuplicateSentenceRemoverRule`, `DuplicatePhraseReducerRule`, `PunctuationNormalizerRule`, `NumberNormalizerRule`, `SemanticCompressorRule`, `FormatControlRule`, and `ConstraintDeduplicatorRule`.
 
 Out of scope: quoted text, Markdown tables, JSON-like blocks outside fenced code, and custom delimiters.
 
@@ -440,23 +447,35 @@ Example: `Explain recursion. Please use bullet points. Answer as a list. Give me
 
 Skips Markdown fenced code blocks and inline code through `ProtectedTextProcessor`.
 
-Current execution order: `OutputFormatDeduplicatorRule → SentenceBudgetRule → LengthControlRule → FormatControlRule`.
+Current execution order: `OutputFormatDeduplicatorRule → ConstraintDeduplicatorRule → SentenceBudgetRule → LengthControlRule → FormatControlRule`.
 
 ---
 
-#### 11. Sentence Budget
+#### 11. Constraint Deduplicator
+
+Removes repeated output-constraint instructions while keeping the first sentence for each constraint type. Supported first-version constraint types are concise, detailed, step-by-step, simple, and examples.
+
+Example: `Explain recursion. Be concise. Keep it short. Make the answer brief. Give examples. Include examples. Explain step by step. Show each step.` → `Explain recursion. Be concise. Give examples. Explain step by step.`
+
+Skips Markdown fenced code blocks and inline code through `ProtectedTextProcessor`.
+
+This rule does not resolve conflicts such as concise vs detailed; conflict handling remains future work.
+
+---
+
+#### 12. Sentence Budget
 
 Limits the prompt by maximum sentence count before word-budget truncation. If the prompt exceeds `maxSentences` (default: 3), it keeps the first N complete sentences and appends an ellipsis. This rule runs before Length Control.
 
 ---
 
-#### 12. Length Control
+#### 13. Length Control
 
 Acts as the final hard word-budget guard. If the prompt still exceeds `maxWords` (default: 50) after earlier optimization rules, it truncates the text at a word boundary and appends `...`.
 
 ---
 
-#### 13. Format Control
+#### 14. Format Control
 
 Replaces verbose, human-readable formatting instructions with their compact symbol equivalents. Markdown fenced code blocks and inline code are skipped through `ProtectedTextProcessor`, so format strings inside protected code regions remain unchanged.
 
@@ -556,6 +575,9 @@ Run the full optimization pipeline on a prompt.
         "Task Analyzer": 0,
       "Semantic Compressor": 2,
       "Structure Minimizer": 0,
+      "Output Format Deduplicator": 0,
+      "Constraint Deduplicator": 0,
+      "Sentence Budget": 0,
       "Length Control": 0,
       "Format Control": 0,
       "Redundancy Suppressor": 3
@@ -688,6 +710,12 @@ Returns metadata for all registered rules in pipeline order.
     "description": "Removes repeated output-format instructions while keeping the first one"
   },
   {
+    "id": "constraintDeduplicator",
+    "name": "Constraint Deduplicator",
+    "level": "Level 2",
+    "description": "Removes repeated output constraints while keeping the first one"
+  },
+  {
     "id": "sentenceBudget",
     "name": "Sentence Budget",
     "level": "Level 2",
@@ -809,6 +837,7 @@ Open `http://localhost:8080` in your browser.
 - [x] v1.5.5 — Protected Text Safety Layer (shared `ProtectedTextProcessor`; high-risk Level 1 text rules skip fenced code blocks and inline code)
 - [x] v1.5.6 — OutputFormatDeduplicatorRule (remove repeated output-format instructions before sentence/length budgets)
 - [x] v1.5.7 — Pipeline Stability Cleanup (rule-level fault isolation, `RuleConfig.getBooleanParam`, FormatControl protected text support, Page 3 action cleanup)
+- [x] v1.5.8 — ConstraintDeduplicatorRule (remove repeated output constraints before sentence/length budgets)
 - [ ] v2.0.0 — Level 3: context optimization (deduplication, reference compression)
 - [ ] v3.0.0 — Level 4 & 5: system-level optimization (system prompt factoring, conversation compression)
 
@@ -852,7 +881,11 @@ in the UI.
 
 v1.5.5 protects Markdown fenced code blocks and inline code inside the high-risk Level 1 transformation rules themselves. This is implemented as `ProtectedTextProcessor`, not as a separate frontend rule card or normal pipeline rule, because the current `Rule` interface only passes String input/output and does not carry shared pipeline context.
 
-The current scope is deliberately partial: fenced code blocks and inline code are preserved byte-for-byte, while normal text outside those regions can still be optimized. v1.5.7 extends this protection to `FormatControlRule` as well as the high-risk Level 1 text rules. Quoted text, Markdown tables, JSON-like blocks outside fenced code, and custom delimiters remain future work. A future Protector/Restorer architecture could be considered if `PipelineContext` is introduced.
+The current scope is deliberately partial: fenced code blocks and inline code are preserved byte-for-byte, while normal text outside those regions can still be optimized. v1.5.7 extends this protection to `FormatControlRule`, and v1.5.8 extends it to `ConstraintDeduplicatorRule` as well as the high-risk Level 1 text rules. Quoted text, Markdown tables, JSON-like blocks outside fenced code, and custom delimiters remain future work. A future Protector/Restorer architecture could be considered if `PipelineContext` is introduced.
+
+### Why add constraint deduplication as a separate Level 2 rule?
+
+Output constraints such as "be concise", "give examples", and "explain step by step" control the model's response style rather than the user's task content. v1.5.8 handles repeated constraints with deterministic sentence-level pattern matching, keeping the first occurrence of each constraint type and deleting later duplicates. This keeps the behavior auditable and avoids LLM-based judgment while leaving output-format deduplication and future conflict resolution as separate responsibilities.
 
 ### Why isolate individual rule failures?
 
@@ -866,4 +899,4 @@ Exposing raw numbers to a UI creates a usability problem: a user setting `aggres
 
 ---
 
-*Built by Andy · 2026 · Last updated 2026/05/03*
+*Built by Andy · 2026 · Last updated 2026/05/10*

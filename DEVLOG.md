@@ -14,10 +14,10 @@
 
 （每次更新都要更新这一栏）
 
-- 当前版本：v1.5.7
-- 当前阶段：Pipeline Stability Cleanup 已完成；RuleEngine 支持单条规则失败隔离，FormatControlRule 已接入 ProtectedTextProcessor，RuleConfig 参数读取能力增强。
-- 已完成模块数：14/14（Level 1 + Level 2 + Quality Check + AI Generate + Sentence Budget + Duplicate Sentence Remover + Case Normalizer + Duplicate Phrase Reducer + Protected Text Safety Layer）
-- 下一步：准备实现 Constraint Deduplicator，去除重复输出约束。
+- 当前版本：v1.5.8
+- 当前阶段：Constraint Deduplicator 已加入 Level 2；重复输出约束要求会保留首个、删除后续重复项。
+- 已完成模块数：14/14（Level 1 + Level 2 + Quality Check + AI Generate + Sentence Budget + Duplicate Sentence Remover + Case Normalizer + Duplicate Phrase Reducer + Protected Text Safety Layer + Constraint Deduplicator）
+- 下一步：继续评估 Instruction Conflict Resolver、Prompt Skeleton Compressor、quoted text / JSON-like blocks / Markdown tables 等保护范围。
 
 ---
 
@@ -365,6 +365,28 @@
 
 ---
 
+### ✅ v1.5.8 — Constraint Deduplicator Rule
+
+产出：
+- 新增 `ConstraintDeduplicatorRule`（Level 2），ruleId = `constraintDeduplicator`，ruleName = `Constraint Deduplicator`
+- 支持 `CONCISE` / `DETAILED` / `STEP_BY_STEP` / `SIMPLE` / `EXAMPLES` 五类输出约束
+- 使用 sentence-level 去重：每类约束保留第一次出现的句子，删除后续重复约束句
+- 接入 `ProtectedTextProcessor`，只处理 Markdown fenced code blocks 和 inline code 外部文本，protected regions byte-for-byte unchanged
+- `RuleRegistryConfig` 注册顺序：`OutputFormatDeduplicatorRule → ConstraintDeduplicatorRule → SentenceBudgetRule → LengthControlRule → FormatControlRule`
+- 前端新增 Constraint Deduplicator rule card，并同步 `state.rules`、`RULE_ORDER`、`RULE_LEVEL`、`RULE_INFO`
+- 新增测试 `ConstraintDeduplicatorRuleTest`
+- 验证结果：compile BUILD SUCCESS，rule test passed
+
+验证 prompt：
+`Explain recursion. Be concise. Keep it short. Make the answer brief. Give examples. Include examples. Explain step by step. Show each step.`
+
+期望输出：
+`Explain recursion. Be concise. Give examples. Explain step by step.`
+
+状态：Constraint Deduplicator 已加入 Level 2，重复输出约束要求会保留首个、删除后续重复项。
+
+---
+
 ## 待完成功能
 
 | 功能 | 优先级 | 说明 |
@@ -453,7 +475,7 @@
 
 ## 下一步行动
 
-1. 准备实现 Constraint Deduplicator，去除重复输出约束。
+1. 继续评估 Instruction Conflict Resolver、Prompt Skeleton Compressor、quoted text / JSON-like blocks / Markdown tables 等保护范围。
 
 ---
 
