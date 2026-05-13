@@ -22,6 +22,7 @@ const state = {
     numberNormalizer:       { enabled: true,  params: {} },
     outputFormatDeduplicator: { enabled: true, params: {} },
     constraintDeduplicator: { enabled: true, params: {} },
+    instructionConflictDetector: { enabled: true, params: {} },
     sentenceBudget:         { enabled: true,  params: { maxSentences: 3 } },
     lengthControl:          { enabled: true,  params: { maxWords: 50 } },
     formatControl:          { enabled: true,  params: {} },
@@ -44,6 +45,7 @@ const RULE_ORDER = [
   'numberNormalizer',
   'outputFormatDeduplicator',
   'constraintDeduplicator',
+  'instructionConflictDetector',
   'sentenceBudget',
   'lengthControl',
   'formatControl',
@@ -54,7 +56,8 @@ const RULE_LEVEL = {
   semanticCompressor: 'l1', structureMinimizer: 'l1',
   duplicateSentenceRemover: 'l1', duplicatePhraseReducer: 'l1',
   punctuationNormalizer: 'l1', numberNormalizer: 'l1',
-  outputFormatDeduplicator: 'l2', constraintDeduplicator: 'l2', sentenceBudget: 'l2',
+  outputFormatDeduplicator: 'l2', constraintDeduplicator: 'l2',
+  instructionConflictDetector: 'l2', sentenceBudget: 'l2',
   lengthControl: 'l2', formatControl: 'l2',
 };
 
@@ -237,6 +240,20 @@ const RULE_INFO = {
       'Semantic similarity matching for paraphrased constraints',
       'Multilingual constraint detection',
       'Conflict detection such as concise vs detailed',
+    ],
+  },
+  instructionConflictDetector: {
+    name: 'Instruction Conflict Detector',
+    level: 'Level 2',
+    levelClass: 'badge-red',
+    what: 'Detects potentially conflicting output instructions such as concise vs detailed, one sentence vs step-by-step, or JSON vs Markdown. The first version only detects conflicts and does not automatically delete text.',
+    hasParams: false,
+    exBefore: 'Explain recursion. Be concise. Give a detailed explanation.',
+    exAfter: 'Explain recursion. Be concise. Give a detailed explanation.',
+    future: [
+      'Automatic conflict resolution suggestions',
+      'Severity scoring for conflicts',
+      'Multilingual conflict detection',
     ],
   },
   sentenceBudget: {
