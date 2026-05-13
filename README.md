@@ -92,11 +92,12 @@ The built-in generator produces "dirty" prompts — intentionally verbose, polit
 | 9 | Number Normalizer | Level 1 | — |
 | 10 | Output Format Deduplicator | Level 2 | — |
 | 11 | Constraint Deduplicator | Level 2 | — |
-| 12 | Sentence Budget | Level 2 | `maxSentences` (integer) |
-| 13 | Length Control | Level 2 | `maxWords` (integer) |
-| 14 | Format Control | Level 2 | — |
+| 12 | Instruction Conflict Detector | Level 2 | — |
+| 13 | Sentence Budget | Level 2 | `maxSentences` (integer) |
+| 14 | Length Control | Level 2 | `maxWords` (integer) |
+| 15 | Format Control | Level 2 | — |
 
-Current rule count: 14.
+Current rule count: 15.
 
 ### Pipeline Visualization
 
@@ -149,21 +150,16 @@ Every optimization run produces a full audit trail. The frontend renders each ru
 │     └───────┬──────────────────────────────────┘                  │
 │             │                                                      │
 │   ┌─────────┴──────────────────────────────────────────────────┐  │
-│   │  Level 1                          Level 2                  │  │
-│   │  ├── FillerRemovalRule            ├── OutputFormatDeduplicatorRule │  │
-│   │  ├── CaseNormalizerRule           ├── SentenceBudgetRule   │  │
-│   │  ├── TaskAnalyzerRule             ├── LengthControlRule    │  │
-│   │  ├── SemanticCompressorRule       └── FormatControlRule    │  │
-│   │  ├── StructureMinimizerRule                                │  │
-│   │  ├── DuplicateSentenceRemoverRule                          │  │
-│   │  ├── DuplicatePhraseReducerRule                            │  │
-│   │  ├── PunctuationNormalizerRule                             │  │
-│   │  └── NumberNormalizerRule                                  │  │
+│   │  Level 1: 9 input-processing rules                         │  │
+│   │  Level 2: 6 output-control / diagnostic rules              │  │
+│   │  Full rule list and order are documented below.             │  │
 │   └────────────────────────────────────────────────────────────┘  │
 └────────────────────────────────────────────────────────────────── ┘
 ```
 
-Level 2 execution order: `OutputFormatDeduplicatorRule → ConstraintDeduplicatorRule → SentenceBudgetRule → LengthControlRule → FormatControlRule`.
+Level 2 execution order: `OutputFormatDeduplicatorRule → ConstraintDeduplicatorRule → InstructionConflictDetectorRule → SentenceBudgetRule → LengthControlRule → FormatControlRule`.
+
+Some rules are diagnostic rather than destructive. `InstructionConflictDetectorRule` does not modify the prompt and always reports `tokensSaved = 0`, but it adds safety and interpretability by surfacing conflicting output requirements in the pipeline step changes.
 
 ### Design Patterns
 
@@ -244,6 +240,8 @@ BetterPromptByAndyy2.0/
     │   │       │
     │   │       └── level2/                         # Output Control Rules
     │   │           ├── OutputFormatDeduplicatorRule.java # Remove repeated output-format instructions
+    │   │           ├── ConstraintDeduplicatorRule.java # Remove repeated output-constraint instructions
+    │   │           ├── InstructionConflictDetectorRule.java # Detect conflicting output instructions
     │   │           ├── SentenceBudgetRule.java     # Sentence-count limit
     │   │           ├── LengthControlRule.java      # Hard word-count truncation
     │   │           └── FormatControlRule.java      # Verbose format instructions → symbols
@@ -259,7 +257,7 @@ BetterPromptByAndyy2.0/
         └── java/.../ApplicationTests.java          # Spring context load test
 ```
 
-Project structure note: `src/main/java/com/betterprompt/betterpromptbyandyy2/optimizer/level2/ConstraintDeduplicatorRule.java` implements the Level 2 constraint deduplication rule.
+Project structure note: `src/main/java/com/betterprompt/betterpromptbyandyy2/optimizer/level2/ConstraintDeduplicatorRule.java` implements Level 2 constraint deduplication, and `src/main/java/com/betterprompt/betterpromptbyandyy2/optimizer/level2/InstructionConflictDetectorRule.java` implements Level 2 conflict diagnostics.
 
 ---
 
@@ -423,11 +421,11 @@ Skips Markdown fenced code blocks and inline code through `ProtectedTextProcesso
 
 #### Protected Text Safety Layer
 
-`ProtectedTextProcessor` is a shared safety utility used by the high-risk text transformation rules, including the protected Level 1 path, `FormatControlRule`, and `ConstraintDeduplicatorRule`. It is not a frontend-visible rule card and not an independent pipeline rule.
+`ProtectedTextProcessor` is a shared safety utility used by the high-risk text transformation rules, including the protected Level 1 path, `FormatControlRule`, `ConstraintDeduplicatorRule`, and `InstructionConflictDetectorRule`. It is not a frontend-visible rule card and not an independent pipeline rule.
 
 Current scope: fenced code blocks using triple backticks and inline code wrapped in single backticks. These protected regions are preserved byte-for-byte while normal natural-language text outside those regions can still be optimized.
 
-Current protected rules: `CaseNormalizerRule`, `StructureMinimizerRule`, `DuplicateSentenceRemoverRule`, `DuplicatePhraseReducerRule`, `PunctuationNormalizerRule`, `NumberNormalizerRule`, `SemanticCompressorRule`, `FormatControlRule`, and `ConstraintDeduplicatorRule`.
+Current protected rules: `CaseNormalizerRule`, `StructureMinimizerRule`, `DuplicateSentenceRemoverRule`, `DuplicatePhraseReducerRule`, `PunctuationNormalizerRule`, `NumberNormalizerRule`, `SemanticCompressorRule`, `FormatControlRule`, `ConstraintDeduplicatorRule`, and `InstructionConflictDetectorRule`.
 
 Out of scope: quoted text, Markdown tables, JSON-like blocks outside fenced code, and custom delimiters.
 
@@ -447,7 +445,7 @@ Example: `Explain recursion. Please use bullet points. Answer as a list. Give me
 
 Skips Markdown fenced code blocks and inline code through `ProtectedTextProcessor`.
 
-Current execution order: `OutputFormatDeduplicatorRule → ConstraintDeduplicatorRule → SentenceBudgetRule → LengthControlRule → FormatControlRule`.
+Current execution order: `OutputFormatDeduplicatorRule → ConstraintDeduplicatorRule → InstructionConflictDetectorRule → SentenceBudgetRule → LengthControlRule → FormatControlRule`.
 
 ---
 
@@ -463,19 +461,35 @@ This rule does not resolve conflicts such as concise vs detailed; conflict handl
 
 ---
 
-#### 12. Sentence Budget
+#### 12. Instruction Conflict Detector
+
+Detects potentially conflicting output instructions without rewriting or deleting anything in the first version. It reports conflicts in the pipeline step changes while keeping `outputText` exactly equal to `inputText` and `tokensSaved = 0`.
+
+Supported first-version conflict pairs:
+
+| Conflict pair | Example |
+|---------------|---------|
+| `CONCISE` vs `DETAILED` | `Be concise. Give a detailed explanation.` |
+| `ONE_SENTENCE` vs `STEP_BY_STEP` | `Answer in 1 sentence. Explain step by step.` |
+| `JSON` vs `MARKDOWN` | `Respond in JSON. Use Markdown format.` |
+
+Skips Markdown fenced code blocks and inline code through `ProtectedTextProcessor`, so diagnostic matches inside protected code regions do not trigger conflicts.
+
+---
+
+#### 13. Sentence Budget
 
 Limits the prompt by maximum sentence count before word-budget truncation. If the prompt exceeds `maxSentences` (default: 3), it keeps the first N complete sentences and appends an ellipsis. This rule runs before Length Control.
 
 ---
 
-#### 13. Length Control
+#### 14. Length Control
 
 Acts as the final hard word-budget guard. If the prompt still exceeds `maxWords` (default: 50) after earlier optimization rules, it truncates the text at a word boundary and appends `...`.
 
 ---
 
-#### 14. Format Control
+#### 15. Format Control
 
 Replaces verbose, human-readable formatting instructions with their compact symbol equivalents. Markdown fenced code blocks and inline code are skipped through `ProtectedTextProcessor`, so format strings inside protected code regions remain unchanged.
 
@@ -519,6 +533,14 @@ Run the full optimization pipeline on a prompt.
       "params": {}
     },
     "outputFormatDeduplicator": {
+      "enabled": true,
+      "params": {}
+    },
+    "constraintDeduplicator": {
+      "enabled": true,
+      "params": {}
+    },
+    "instructionConflictDetector": {
       "enabled": true,
       "params": {}
     },
@@ -577,6 +599,7 @@ Run the full optimization pipeline on a prompt.
       "Structure Minimizer": 0,
       "Output Format Deduplicator": 0,
       "Constraint Deduplicator": 0,
+      "Instruction Conflict Detector": 0,
       "Sentence Budget": 0,
       "Length Control": 0,
       "Format Control": 0,
@@ -716,6 +739,12 @@ Returns metadata for all registered rules in pipeline order.
     "description": "Removes repeated output constraints while keeping the first one"
   },
   {
+    "id": "instructionConflictDetector",
+    "name": "Instruction Conflict Detector",
+    "level": "Level 2",
+    "description": "Detects potentially conflicting output instructions without modifying the prompt"
+  },
+  {
     "id": "sentenceBudget",
     "name": "Sentence Budget",
     "level": "Level 2",
@@ -838,8 +867,21 @@ Open `http://localhost:8080` in your browser.
 - [x] v1.5.6 — OutputFormatDeduplicatorRule (remove repeated output-format instructions before sentence/length budgets)
 - [x] v1.5.7 — Pipeline Stability Cleanup (rule-level fault isolation, `RuleConfig.getBooleanParam`, FormatControl protected text support, Page 3 action cleanup)
 - [x] v1.5.8 — ConstraintDeduplicatorRule (remove repeated output constraints before sentence/length budgets)
-- [ ] v2.0.0 — Level 3: context optimization (deduplication, reference compression)
-- [ ] v3.0.0 — Level 4 & 5: system-level optimization (system prompt factoring, conversation compression)
+- [x] v1.5.9 — InstructionConflictDetectorRule (diagnose conflicting output instructions without rewriting the prompt)
+
+Future upgrade candidates:
+
+| Area | Direction |
+|------|-----------|
+| Prompt Skeleton Compressor | Compress structured prompt headings and repeated template scaffolding |
+| Local rule corpus expansion | Broaden offline pattern coverage without adding LLM API calls |
+| Externalized pattern libraries | Move selected Java pattern lists toward JSON/YAML configs such as `filler_patterns.json`, `semantic_compression_pairs.json`, `constraint_patterns.json`, `conflict_patterns.json`, and `format_patterns.json` |
+| Larger local datasets | Expand filler phrases, polite openers, closing remarks, verbose-to-concise pairs, constraint expressions, conflict patterns, and format instruction patterns |
+| Conflict handling | Add severity scoring and suggestion-only conflict resolution |
+| Length control | Replace hard truncation with importance-aware trimming |
+| Protected text | Expand protection to quoted text, JSON-like blocks, and Markdown tables |
+| Semantic coverage | Explore semantic-similarity based compression and deduplication |
+| Multilingual support | Add multilingual prompt optimization for filler, compression, constraints, and conflicts |
 
 ---
 
@@ -879,13 +921,25 @@ in the UI.
 
 ### Why a ProtectedTextProcessor utility instead of a visible rule?
 
-v1.5.5 protects Markdown fenced code blocks and inline code inside the high-risk Level 1 transformation rules themselves. This is implemented as `ProtectedTextProcessor`, not as a separate frontend rule card or normal pipeline rule, because the current `Rule` interface only passes String input/output and does not carry shared pipeline context.
+v1.5.5 protects Markdown fenced code blocks and inline code inside the high-risk Level 1 transformation rules themselves. This is implemented as `ProtectedTextProcessor`, not as a separate frontend rule card or normal pipeline rule.
 
-The current scope is deliberately partial: fenced code blocks and inline code are preserved byte-for-byte, while normal text outside those regions can still be optimized. v1.5.7 extends this protection to `FormatControlRule`, and v1.5.8 extends it to `ConstraintDeduplicatorRule` as well as the high-risk Level 1 text rules. Quoted text, Markdown tables, JSON-like blocks outside fenced code, and custom delimiters remain future work. A future Protector/Restorer architecture could be considered if `PipelineContext` is introduced.
+The current scope is deliberately partial: fenced code blocks and inline code are preserved byte-for-byte, while normal text outside those regions can still be optimized. v1.5.7 extends this protection to `FormatControlRule`, v1.5.8 extends it to `ConstraintDeduplicatorRule`, and v1.5.9 extends it to `InstructionConflictDetectorRule` as well as the high-risk Level 1 text rules. Quoted text, Markdown tables, JSON-like blocks outside fenced code, and custom delimiters remain future work.
+
+### Why keep core optimization offline and rule-based?
+
+BetterPrompt's core value is reducing token usage, so the optimizer avoids extra LLM API calls for routine cleanup whenever deterministic rules can do the job. Filler removal, semantic compression, constraint deduplication, conflict detection, and format normalization are intentionally built from local patterns and phrase pairs first.
+
+Future coverage should come primarily from local rule corpus expansion: larger pattern libraries for filler phrases, polite openers, closing remarks, verbose-to-concise phrase pairs, constraint expressions, conflict patterns, and format instruction patterns. This keeps optimization low-cost, explainable, easy to unit test, and easy to review in version control.
 
 ### Why add constraint deduplication as a separate Level 2 rule?
 
 Output constraints such as "be concise", "give examples", and "explain step by step" control the model's response style rather than the user's task content. v1.5.8 handles repeated constraints with deterministic sentence-level pattern matching, keeping the first occurrence of each constraint type and deleting later duplicates. This keeps the behavior auditable and avoids LLM-based judgment while leaving output-format deduplication and future conflict resolution as separate responsibilities.
+
+### Why is conflict detection diagnosis-only?
+
+v1.5.9 deliberately detects conflicts without editing the prompt because automatic conflict resolution can easily change user intent. `InstructionConflictDetectorRule` reports pairs such as `CONCISE` vs `DETAILED`, `ONE_SENTENCE` vs `STEP_BY_STEP`, and `JSON` vs `MARKDOWN` in the step changes, but keeps `outputText` unchanged and records `tokensSaved = 0`.
+
+Future versions may add severity scores and suggestion-only resolution. The detector should continue to avoid direct prompt rewrites unless the user explicitly chooses a resolution, because automatic edits can alter intent.
 
 ### Why isolate individual rule failures?
 
@@ -899,4 +953,4 @@ Exposing raw numbers to a UI creates a usability problem: a user setting `aggres
 
 ---
 
-*Built by Andy · 2026 · Last updated 2026/05/10*
+*Built by Andy · 2026 · Last updated 2026/05/12*

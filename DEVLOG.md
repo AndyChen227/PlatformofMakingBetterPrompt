@@ -14,10 +14,10 @@
 
 （每次更新都要更新这一栏）
 
-- 当前版本：v1.5.8
-- 当前阶段：Constraint Deduplicator 已加入 Level 2；重复输出约束要求会保留首个、删除后续重复项。
-- 已完成模块数：14/14（Level 1 + Level 2 + Quality Check + AI Generate + Sentence Budget + Duplicate Sentence Remover + Case Normalizer + Duplicate Phrase Reducer + Protected Text Safety Layer + Constraint Deduplicator）
-- 下一步：继续评估 Instruction Conflict Resolver、Prompt Skeleton Compressor、quoted text / JSON-like blocks / Markdown tables 等保护范围。
+- 当前版本：v1.5.9
+- 当前阶段：Instruction Conflict Detector 已加入 Level 2；当前可检测 CONCISE vs DETAILED、ONE_SENTENCE vs STEP_BY_STEP、JSON vs MARKDOWN 三类潜在冲突，第一版只检测、不自动修改 prompt。
+- 已完成模块数：15/15（Level 1 + Level 2 + Quality Check + AI Generate + Sentence Budget + Duplicate Sentence Remover + Case Normalizer + Duplicate Phrase Reducer + Protected Text Safety Layer + Constraint Deduplicator + Instruction Conflict Detector）
+- 下一步：继续评估 Prompt Skeleton Compressor、本地规则语料库扩展、Instruction Conflict Resolver 升级、quoted text / JSON-like blocks / Markdown tables 等保护范围。
 
 ---
 
@@ -308,7 +308,7 @@
 设计决策：
 - v1.5.5 采用共享 utility layer，而不是新增一个普通 pipeline rule
 - 原因：当前 `Rule` interface 只传递 `String input/output`，不携带 shared pipeline context，普通 Protector/Restorer rule 无法安全地跨规则保存 protected state
-- 未来如果引入 `PipelineContext`，可以考虑升级为 Protector/Restorer architecture
+- 后续可继续扩大 protected text 范围，优先评估 quoted text、JSON-like blocks、Markdown tables
 
 状态：Protected Text Safety Layer 已接入七个高风险 Level 1 文本转换规则
 
@@ -387,6 +387,57 @@
 
 ---
 
+### ✅ v1.5.9 — Instruction Conflict Detector Rule
+
+产出：
+- 新增 `InstructionConflictDetectorRule`（Level 2），ruleId = `instructionConflictDetector`，ruleName = `Instruction Conflict Detector`
+- 第一版只检测冲突，不自动删除、不自动改写 prompt
+- `outputText == inputText`，`tokensSaved = 0`
+- 支持三组冲突：
+  - `CONCISE` vs `DETAILED`
+  - `ONE_SENTENCE` vs `STEP_BY_STEP`
+  - `JSON` vs `MARKDOWN`
+- 使用 Pattern-based detection，不依赖 LLM
+- 接入 `ProtectedTextProcessor`，只检测 Markdown fenced code blocks 和 inline code 外部文本
+- `RuleRegistryConfig` 注册顺序：`OutputFormatDeduplicatorRule → ConstraintDeduplicatorRule → InstructionConflictDetectorRule → SentenceBudgetRule → LengthControlRule → FormatControlRule`
+- 前端新增 Instruction Conflict Detector rule card，并同步 `state.rules`、`RULE_ORDER`、`RULE_LEVEL`、`RULE_INFO`
+- 新增并更新 `InstructionConflictDetectorRuleTest`
+
+验证：
+- Maven compile BUILD SUCCESS
+- targeted test passed
+- 页面综合 prompt 可检测三组冲突：`Be concise. Give a detailed explanation. Answer in 1 sentence. Explain step by step. Respond in JSON. Use Markdown format.`
+
+当前行为：
+- prompt 不被修改
+- changes 中记录 `CONCISE 与 DETAILED`、`ONE_SENTENCE 与 STEP_BY_STEP`、`JSON 与 MARKDOWN`
+- tokens saved = 0
+
+未来升级方向：
+- Detector → Resolver：从“提示冲突”升级为“给出解决建议”
+- Severity scoring：给冲突分 LOW / MEDIUM / HIGH
+- Suggestion mode：提供合并后的建议表达，但不直接改用户 prompt
+- More conflict pairs：`FORMAL` vs `CASUAL`、`BEGINNER` vs `EXPERT`、`NO_MARKDOWN` vs `MARKDOWN`、`NO_CODE` vs `PROVIDE_CODE`
+- 本地 conflict pattern corpus：继续扩大固定 patterns 覆盖范围，保持离线、可解释、可测试
+
+状态：Instruction Conflict Detector 已加入 Level 2，作为 diagnostic rule 提升 pipeline 可解释性；当前只检测、不自动修改 prompt。
+
+---
+
+## 后续升级候选池
+
+- Prompt Skeleton Compressor：压缩结构化 prompt 的模板标题和重复骨架，减少模板本身的 token 消耗
+- 本地规则语料库扩展（Local Rule Corpus Expansion）：当前很多 rule 依赖固定 patterns；后续优先扩大本地 pattern library / phrase pair library / constraint corpus，而不是依赖外部 API
+- Instruction Conflict Detector → Resolver：从检测冲突升级为提供解决建议，但不直接自动改写用户 prompt
+- ProtectedTextProcessor 扩展：继续评估 quoted text / JSON-like blocks / Markdown tables 保护范围
+- LengthControl 升级：从 hard truncate 升级到 importance-aware trimming，避免截断核心任务句、debug 错误信息或代码上下文
+- TaskAnalyzer 升级：从关键词分类升级到多标签分类和 configurable keyword dictionaries
+- Semantic similarity based compression and deduplication：用于更高阶的短语压缩、近似重复句检测和约束去重
+
+本地规则语料库扩展的目标是增加真实用户输入覆盖范围，同时保持核心优化流程低成本、可解释、可测试。未来可以逐步把 patterns / phrase pairs 外部化到 JSON/YAML，例如 `filler_patterns.json`、`semantic_compression_pairs.json`、`constraint_patterns.json`、`conflict_patterns.json`、`format_patterns.json`。
+
+---
+
 ## 待完成功能
 
 | 功能 | 优先级 | 说明 |
@@ -420,7 +471,7 @@
 | 2026/4/30 | CaseNormalizerRule 采用 0.9 大写比例阈值 | 大小写规范化容易误伤专有名词和缩写，因此第一版只处理明显全大写输入，使用更保守的 0.9 阈值降低误改风险 |
 | 2026/4/30 | DuplicatePhraseReducerRule 第一版只处理连续重复短语 | 为避免误删用户真实意图，第一版仅处理 exact adjacent duplicate unigram/bigram/trigram，不做语义相似判断；前端 diff 高亮问题后续作为独立 UI 优化处理 |
 | 2026/5/1 | 文档版本号体系统一至标准三段式 major.minor.patch | major 留给架构级新维度（Level 3 = v2.0.0，Level 4/5 = v3.0.0）；minor 留给独立新功能模块（Generator / UI 重构 / Quality Check / AI Generate / BPE Tokenizer）；patch 留给单条规则上线。git tag 历史（v1.0.4 / v3.0）保留，文档归文档、tag 归 tag。 |
-| 2026/5/3 | Protected Text Safety Layer 采用共享工具类而不是普通 pipeline rule | 当前 Rule interface 只传递 String input/output，不携带 shared pipeline context；共享 `ProtectedTextProcessor` 可以让高风险规则在本地跳过 fenced code blocks 和 inline code。未来若引入 PipelineContext，可考虑 Protector/Restorer architecture。 |
+| 2026/5/3 | Protected Text Safety Layer 采用共享工具类而不是普通 pipeline rule | 共享 `ProtectedTextProcessor` 可以让高风险规则在本地跳过 fenced code blocks 和 inline code。后续保护范围优先评估 quoted text、JSON-like blocks 和 Markdown tables。 |
 | 2026/5/8 | RuleEngine 增加 rule-level fault isolation | 单条规则失败不应中断完整优化链路；记录 `status="error"` StepResult 并保持 currentText 不变，可以保留可审计性并让后续规则继续工作。 |
 
 ---
@@ -475,8 +526,8 @@
 
 ## 下一步行动
 
-1. 继续评估 Instruction Conflict Resolver、Prompt Skeleton Compressor、quoted text / JSON-like blocks / Markdown tables 等保护范围。
+1. 继续评估 Prompt Skeleton Compressor、本地规则语料库扩展、Instruction Conflict Resolver 升级、quoted text / JSON-like blocks / Markdown tables 等保护范围。
 
 ---
 
-*最后更新：2026/5/1 · 维护人：Andy*
+*最后更新：2026/5/12 · 维护人：Andy*

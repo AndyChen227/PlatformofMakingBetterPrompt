@@ -1,4 +1,4 @@
-# BetterPrompt 功能清单 v1.5.8
+# BetterPrompt 功能清单 v1.5.9
 
 > 本文档根据实际代码生成，记录项目每个功能的实现状态、细节和验证方式。
 > 更新规则：每完成或修改一个功能，同步更新对应条目。
@@ -11,12 +11,12 @@
 |------|--------|-----------|--------------|----------|
 | 后端核心框架 | 4 | 3 | 1 | 0 |
 | Level 1 优化规则 | 9 | 7 | 2 | 0 |
-| Level 2 优化规则 | 5 | 3 | 2 | 0 |
+| Level 2 优化规则 | 6 | 3 | 3 | 0 |
 | Prompt Generator | 2 | 2 | 0 | 0 |
 | REST API | 4 | 4 | 0 | 0 |
 | 前端 UI | 5 | 5 | 0 | 0 |
 | 质量对比（Quality Check） | 6 | 6 | 0 | 0 |
-| **合计** | **35** | **29** | **6** | **0** |
+| **合计** | **36** | **29** | **7** | **0** |
 
 ---
 
@@ -61,7 +61,7 @@
 
 **byRule 贡献度 Map**：key 为 `rule.getRuleName()`，value 为 `Math.max(0, step.getTokensSaved())`（负值（TaskAnalyzer 追加 tag 时）记为 0）
 
-**验证方式**：POST /api/optimize，传入包含多条规则的请求；检查响应中 steps 数组长度等于注册规则数（13），跳过的 rules status="skipped"，执行的 rules status="done"，单条规则失败时返回 status="error" 且 pipeline 不会中断
+**验证方式**：POST /api/optimize，传入包含多条规则的请求；检查响应中 steps 数组长度等于注册规则数（15），跳过的 rules status="skipped"，执行的 rules status="done"，单条规则失败时返回 status="error" 且 pipeline 不会中断
 
 ### 1.2.1 RuleConfig（规则参数配置）
 ✅ 已完成并测试
@@ -92,9 +92,10 @@
 | 9 | `NumberNormalizerRule` | `numberNormalizer` | Level 1 |
 | 10 | `OutputFormatDeduplicatorRule` | `outputFormatDeduplicator` | Level 2 |
 | 11 | `ConstraintDeduplicatorRule` | `constraintDeduplicator` | Level 2 |
-| 12 | `SentenceBudgetRule` | `sentenceBudget` | Level 2 |
-| 13 | `LengthControlRule` | `lengthControl` | Level 2 |
-| 14 | `FormatControlRule` | `formatControl` | Level 2 |
+| 12 | `InstructionConflictDetectorRule` | `instructionConflictDetector` | Level 2 |
+| 13 | `SentenceBudgetRule` | `sentenceBudget` | Level 2 |
+| 14 | `LengthControlRule` | `lengthControl` | Level 2 |
+| 15 | `FormatControlRule` | `formatControl` | Level 2 |
 
 **新增规则的步骤**：
 1. 创建 `YourNewRule.java`，实现 `Rule` 接口（放在 `optimizer/` 下任意子包）
@@ -167,9 +168,10 @@
 - `SemanticCompressorRule`
 - `FormatControlRule`
 - `ConstraintDeduplicatorRule`
+- `InstructionConflictDetectorRule`
 
 **行为说明：**
-- 上述高风险文本转换规则只处理 protected regions 之外的普通自然语言文本；`FormatControlRule` 也已接入该保护层
+- 上述高风险文本转换规则只处理 protected regions 之外的普通自然语言文本；`FormatControlRule`、`ConstraintDeduplicatorRule` 和 `InstructionConflictDetectorRule` 也已接入该保护层。`ConstraintDeduplicatorRule` 只处理 protected regions 外部文本，`InstructionConflictDetectorRule` 只检测 protected regions 外部文本，不会被 code block / inline code 中的指令触发
 - fenced code blocks 和 inline code 会保持 byte-for-byte unchanged
 - protected regions 之外的普通文本仍然可以被正常优化
 - 该能力是共享 utility layer，不是单独的前端规则卡片，也不是独立 pipeline rule
@@ -184,7 +186,6 @@
 - quoted text protection
 - JSON block / Markdown table protection
 - budget-aware protection
-- 若未来引入 `PipelineContext`，可评估 Protector/Restorer architecture
 
 **验证说明：**
 - `ProtectedTextProcessorTest`
@@ -772,7 +773,7 @@ actually
 - 期望输出：`"Explain recursion. Please use bullet points."`
 
 **执行顺序：**
-当前注册顺序为：`OutputFormatDeduplicatorRule → ConstraintDeduplicatorRule → SentenceBudgetRule → LengthControlRule → FormatControlRule`。
+当前注册顺序为：`OutputFormatDeduplicatorRule → ConstraintDeduplicatorRule → InstructionConflictDetectorRule → SentenceBudgetRule → LengthControlRule → FormatControlRule`。
 
 ---
 
@@ -811,6 +812,12 @@ actually
 - 不做 conflict detection，例如 concise vs detailed 目前会分别保留
 - 不保护 quoted text、JSON-like blocks outside fenced code、Markdown tables
 
+**未来升级：**
+- semantic similarity matching for paraphrased constraints
+- 多语言 constraint detection
+- 扩展本地 constraint pattern corpus
+- 支持更多约束类型，例如 `FORMAL`、`CASUAL`、`BEGINNER_FRIENDLY`、`EXPERT_LEVEL`、`NO_CODE`、`CODE_ONLY`
+
 **验证用例：**
 - 输入：`Explain recursion. Be concise. Keep it short. Make the answer brief. Give examples. Include examples. Explain step by step. Show each step.`
 - 期望输出：`Explain recursion. Be concise. Give examples. Explain step by step.`
@@ -818,11 +825,66 @@ actually
 - 验证结果：compile BUILD SUCCESS，rule test passed
 
 **执行顺序：**
-当前注册顺序为：`OutputFormatDeduplicatorRule → ConstraintDeduplicatorRule → SentenceBudgetRule → LengthControlRule → FormatControlRule`。
+当前注册顺序为：`OutputFormatDeduplicatorRule → ConstraintDeduplicatorRule → InstructionConflictDetectorRule → SentenceBudgetRule → LengthControlRule → FormatControlRule`。
 
 ---
 
-### 3.3 SentenceBudgetRule
+### 3.3 InstructionConflictDetectorRule
+🔧 部分完成（v1.5.9）
+
+**功能说明：**
+检测 prompt 中潜在互相冲突的输出要求。第一版只检测，不修改 prompt，不删除冲突文本，`outputText == inputText`，`tokensSaved = 0`，用于提高 pipeline 的安全性、可解释性和诊断能力。
+
+**支持的冲突类型：**
+
+| 冲突类型 | 示例 |
+|---------|------|
+| `CONCISE` vs `DETAILED` | `Be concise. Give a detailed explanation.` |
+| `ONE_SENTENCE` vs `STEP_BY_STEP` | `Answer in 1 sentence. Explain step by step.` |
+| `JSON` vs `MARKDOWN` | `Respond in JSON. Use Markdown format.` |
+
+**执行逻辑：**
+1. inputText 为 null 时视为空字符串
+2. 使用 `ProtectedTextProcessor`，只检测 Markdown fenced code blocks 和 inline code 外部文本
+3. 使用 pattern 检测各 instruction type
+4. 每种 instruction type 只记录第一次命中，避免 changes 过长
+5. 如果一个 conflict pair 两边都命中，则记录冲突
+6. `outputText` 保持不变
+7. `tokensSaved` 为 0
+
+**Changes 消息示例：**
+- `[instructionConflictDetector] CONCISE 命中: "Be concise."`
+- `[instructionConflictDetector] DETAILED 命中: "Give a detailed explanation."`
+- `[instructionConflictDetector] 检测到潜在冲突: CONCISE 与 DETAILED`
+- `[instructionConflictDetector] 未检测到明显指令冲突`
+
+**验证用例：**
+- 输入：`Be concise. Give a detailed explanation. Answer in 1 sentence. Explain step by step. Respond in JSON. Use Markdown format.`
+- 期望：`outputText` 不变，检测出三组冲突，`tokensSaved = 0`
+- 测试：`InstructionConflictDetectorRuleTest`
+- 验证结果：compile BUILD SUCCESS，targeted test passed
+
+**已知局限：**
+- 第一版不自动 resolve，只做检测
+- 依赖固定 pattern，无法识别所有 paraphrase
+- 不做 severity scoring
+- 不生成建议改写
+- 暂不支持多语言冲突检测
+
+**未来升级：**
+- Resolver mode
+- Severity scoring
+- Suggestion-only conflict resolution
+- More conflict pairs
+- 扩展本地 conflict pattern corpus
+- 支持从 JSON/YAML 加载 conflict patterns
+
+**执行顺序：**
+当前注册顺序为：`OutputFormatDeduplicatorRule → ConstraintDeduplicatorRule → InstructionConflictDetectorRule → SentenceBudgetRule → LengthControlRule → FormatControlRule`。
+
+---
+
+### 3.4 SentenceBudgetRule
 ✅ 已完成并测试
 
 **功能说明：**
@@ -866,7 +928,7 @@ actually
 
 ---
 
-### 3.4 LengthControlRule
+### 3.5 LengthControlRule
 ✅ 已实现（real algorithm）
 
 **参数**：`maxWords`（int，默认 50；若传入 ≤ 0 则重置为 50）
@@ -904,7 +966,7 @@ actually
 
 ---
 
-### 3.5 FormatControlRule
+### 3.6 FormatControlRule
 ✅ 已实现（real algorithm）
 
 **v1.5.7 更新**：
@@ -942,6 +1004,49 @@ actually
 - 输入：`"Format using bullet points: apples, bananas."`
 - 期望输出：`"Format using • apples, bananas."`
 - 期望改动：`["[formatControl] \"bullet points:\" → \"•\""]`
+
+---
+
+
+## 本地规则语料库扩展路线图
+
+BetterPrompt 未来会优先扩大本地 pattern / phrase pair / constraint corpus，而不是依赖外部 LLM API 来判断 filler、compression、constraint 或 conflict。核心目标是在不调用外部 API 的情况下覆盖更多真实用户输入，同时保持优化过程 zero-extra-API-call、低成本、可解释、可测试、可版本管理。
+
+| 模块 | 当前方式 | 未来语料库扩展方向 |
+|------|----------|-------------------|
+| `FillerRemovalRule` | 固定正则列表 | 扩充 greeting / polite opener / closing / filler phrase corpus |
+| `SemanticCompressorRule` | 固定短语替换表 | 扩充 verbose-to-concise phrase pair corpus |
+| `ConstraintDeduplicatorRule` | 固定 constraint patterns | 扩充 constraint expression corpus |
+| `InstructionConflictDetectorRule` | 固定 conflict patterns | 扩充 conflict pair corpus |
+| `FormatControlRule` | 固定格式替换 | 扩充 format instruction corpus |
+| `OutputFormatDeduplicatorRule` | 固定格式检测 pattern | 扩充 output format paraphrase corpus |
+
+未来可以逐步把部分 pattern 从 Java 代码中外部化到 JSON / YAML 配置文件，例如：
+- `filler_patterns.json`
+- `semantic_compression_pairs.json`
+- `constraint_patterns.json`
+- `conflict_patterns.json`
+- `format_patterns.json`
+
+### 各规则未来升级方向
+
+| Rule | 未来升级方向 |
+|------|--------------|
+| `FillerRemovalRule` | 多语言 filler；扩充本地 filler corpus；上下文保留模式；语义相似 filler 检测；正式写作场景保护 |
+| `CaseNormalizerRule` | 保护专有名词和缩写，如 OpenAI、GitHub、JavaScript、SQL、API、JSON、HTML、CSS、GPT；更智能判断强调性全大写是否需要保留 |
+| `TaskAnalyzerRule` | 更大的本地关键词库；多标签分类；可配置 domain/task keyword dictionaries；后续让 taskType / complexity 影响其他 rule |
+| `SemanticCompressorRule` | 更大的本地 phrase-pair corpus；多语言短语压缩；风险等级；proper noun / quoted text 更强保护 |
+| `StructureMinimizerRule` | 清理重复 Markdown 标题；清理重复分隔线；删除空 bullet；保护 Markdown tables |
+| `DuplicateSentenceRemoverRule` | 近似重复句检测；更好的 sentence boundary detection；处理 e.g.、URLs、version numbers 等边界情况 |
+| `DuplicatePhraseReducerRule` | 支持更长短语；避免误删强调表达如 very very important；更好的 punctuation-preserving tokenization |
+| `PunctuationNormalizerRule` | 支持中文标点；处理混合标点如 ?! / !?；更细粒度的 punctuation policy |
+| `NumberNormalizerRule` | 支持序数词；支持小数；支持范围表达，如 between five and ten → between 5 and 10 |
+| `OutputFormatDeduplicatorRule` | 扩大 output format paraphrase corpus；支持 YAML / CSV / plain text / code-only 等更多格式类型；与 conflict detector 配合识别格式冲突 |
+| `ConstraintDeduplicatorRule` | 扩大本地 constraint pattern corpus；支持 `FORMAL`、`CASUAL`、`BEGINNER_FRIENDLY`、`EXPERT_LEVEL`、`NO_CODE`、`CODE_ONLY` 等更多约束类型；支持多语言约束识别 |
+| `InstructionConflictDetectorRule` | 扩大本地 conflict pattern corpus；新增 `FORMAL` vs `CASUAL`、`BEGINNER` vs `EXPERT`、`NO_CODE` vs `PROVIDE_CODE`、`NO_MARKDOWN` vs `MARKDOWN`、`SHORT_ANSWER` vs `INCLUDE_EXAMPLES`；增加 severity scoring；未来升级为 suggestion-only resolver |
+| `SentenceBudgetRule` | 从保留前 N 句升级为保留重要句；根据任务类型动态调整句子预算；与 `LengthControlRule` 更清晰分工 |
+| `LengthControlRule` | 从 hard truncate 升级为 smart trimming；按句子边界截断；保留 debug 错误信息、代码、核心任务句；避免切断重要上下文 |
+| `FormatControlRule` | 扩充本地 format pattern corpus；识别 implicit format intent；识别 no-markdown / no-code / plain text only 等格式约束 |
 
 ---
 
@@ -1144,13 +1249,14 @@ Content-Type: application/json
   { "id": "numberNormalizer", "name": "Number Normalizer", "level": "Level 1", "description": "Converts written English numbers to Arabic numerals" },
   { "id": "outputFormatDeduplicator", "name": "Output Format Deduplicator", "level": "Level 2", "description": "Removes repeated output-format instructions while keeping the first one" },
   { "id": "constraintDeduplicator", "name": "Constraint Deduplicator", "level": "Level 2", "description": "Removes repeated output constraints while keeping the first one" },
+  { "id": "instructionConflictDetector", "name": "Instruction Conflict Detector", "level": "Level 2", "description": "Detects potentially conflicting output instructions without modifying the prompt" },
   { "id": "sentenceBudget",    "name": "Sentence Budget",       "level": "Level 2", "description": "Limits prompt length by sentence count before word truncation" },
   { "id": "lengthControl",      "name": "Length Control",       "level": "Level 2", "description": "Truncates text that exceeds the max-words budget" },
   { "id": "formatControl",      "name": "Format Control",       "level": "Level 2", "description": "Converts verbose formatting instructions to compact symbols" }
 ]
 ```
 
-**用途**：前端可用此接口动态渲染规则配置面板（当前前端硬编码了 14 条规则的 HTML，未实际调用此接口）
+**用途**：前端可用此接口动态渲染规则配置面板（当前前端硬编码了 15 条规则的 HTML，未实际调用此接口）
 
 ---
 
@@ -1175,7 +1281,7 @@ Content-Type: application/json
 
 **策略选择面板**（右栏）：
 - Level 1 块（蓝色标题 badge）：4 条规则
-- Level 2 块（红色标题 badge）：5 条规则
+- Level 2 块（红色标题 badge）：6 条规则
 - Toggle 开关：切换后调用 `toggleRule()`，禁用的规则卡片添加 `.disabled` CSS 类
 - LOW/MID/HIGH 三档按钮：点击后当前档按钮添加 `.active` CSS 类，调用 `setTierParam()` 更新 `state.rules`；默认激活 MID（aggressiveness=50，compressionLevel=50）
 - Length Control 的 Max Words：`<input type="number">` 默认值 50，range 10-500，实时更新 `state.rules.lengthControl.params.maxWords`
