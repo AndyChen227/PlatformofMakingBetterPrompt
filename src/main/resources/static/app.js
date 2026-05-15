@@ -727,8 +727,6 @@ function renderResultPage(result) {
   // Side-by-side comparison
   const origText  = state.prompt || '';
   const optText   = result.finalPrompt || '';
-  const origDiff  = generateDiffBefore(origText, optText);
-  const optDiff   = generateDiffAfter(origText, optText);
 
   $('compareRow').innerHTML = `
     <div class="compare-col">
@@ -736,7 +734,7 @@ function renderResultPage(result) {
         <span class="compare-title">Original Prompt</span>
         <span class="badge badge-red">Before</span>
       </div>
-      <div class="compare-body original">${origDiff}</div>
+      <div class="compare-body original" id="finalOriginalPrompt" style="white-space:pre-wrap;"></div>
       <div class="compare-footer">${original} tokens</div>
     </div>
     <div class="compare-col">
@@ -745,10 +743,14 @@ function renderResultPage(result) {
         <span class="badge badge-green">After</span>
         <button class="btn-copy" id="btnCopy" onclick="copyPrompt()">Copy</button>
       </div>
-      <div class="compare-body optimized">${optDiff}</div>
+      <div class="compare-body optimized" id="finalOptimizedPrompt" style="white-space:pre-wrap;"></div>
       <div class="compare-footer green">${final_} tokens</div>
     </div>
   `;
+
+  // Page 3 intentionally uses plain text rendering to avoid misleading diff highlights.
+  $('finalOriginalPrompt').textContent = origText;
+  $('finalOptimizedPrompt').textContent = optText;
 
   // Applied rule chips
   const steps = result.steps || [];

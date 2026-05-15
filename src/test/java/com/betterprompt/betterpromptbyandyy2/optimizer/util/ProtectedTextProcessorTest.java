@@ -15,6 +15,19 @@ class ProtectedTextProcessorTest {
             .replace("in order to", "to")
             .replace("step by step step by step", "step by step");
 
+    private static final UnaryOperator<String> TRIMMING_SEMANTIC_TRANSFORMER =
+            ProtectedTextProcessorTest::trimmingSemanticTransform;
+
+    private static String trimmingSemanticTransform(String text) {
+        String result = text
+                .replaceFirst("^Please\\s+", "")
+                .replace("in order to", "to")
+                .replace("due to the fact that", "because")
+                .replaceAll("\\s+", " ")
+                .trim();
+        return result.replaceFirst("^explain\\b", "Explain");
+    }
+
     @Test
     void fencedCodeBlockIsPreservedWhileOutsideTextIsTransformed() {
         String input = """
@@ -101,6 +114,141 @@ class ProtectedTextProcessorTest {
         String expected = "Before 20 ```java SYSTEM.OUT.PRINTLN(\"HELLO!!!\"); String value = \"twenty\"; ``` after 20?";
 
         String output = ProtectedTextProcessor.transformOutsideMarkdownCode(input, DANGEROUS_TRANSFORMER);
+
+        assertThat(output).isEqualTo(expected);
+    }
+
+    @Test
+    void doubleQuotedTextIsPreservedWhileOutsideTextIsTransformed() {
+        String input = "Rewrite \"in order to get twenty examples??\" in order to get TWENTY examples??";
+        String expected = "Rewrite \"in order to get twenty examples??\" to get 20 examples?";
+
+        String output = ProtectedTextProcessor.transformOutsideMarkdownCode(input, DANGEROUS_TRANSFORMER);
+
+        assertThat(output).isEqualTo(expected);
+    }
+
+    @Test
+    void singleQuotedTextIsPreservedWithoutTreatingApostrophesAsQuotes() {
+        String input = "Don't change 'step by step step by step' but change step by step step by step.";
+        String expected = "Don't change 'step by step step by step' but change step by step.";
+
+        String output = ProtectedTextProcessor.transformOutsideMarkdownCode(input, DANGEROUS_TRANSFORMER);
+
+        assertThat(output).isEqualTo(expected);
+    }
+
+    @Test
+    void curlyQuotedTextIsPreserved() {
+        String input = "Keep \u201cin order to get twenty examples??\u201d and change TWENTY??";
+        String expected = "Keep \u201cin order to get twenty examples??\u201d and change 20?";
+
+        String output = ProtectedTextProcessor.transformOutsideMarkdownCode(input, DANGEROUS_TRANSFORMER);
+
+        assertThat(output).isEqualTo(expected);
+    }
+
+    @Test
+    void unclosedQuotedTextIsNotProtected() {
+        String input = "Rewrite \"in order to get TWENTY examples??";
+        String expected = "Rewrite \"to get 20 examples?";
+
+        String output = ProtectedTextProcessor.transformOutsideMarkdownCode(input, DANGEROUS_TRANSFORMER);
+
+        assertThat(output).isEqualTo(expected);
+    }
+
+    @Test
+    void splitIntoSegmentsMarksQuotedTextAsProtected() {
+        String input = "Before TWENTY \"do not change twenty\" after TWENTY";
+
+        assertThat(ProtectedTextProcessor.splitIntoSegments(input))
+                .extracting(ProtectedTextProcessor.Segment::getText,
+                        ProtectedTextProcessor.Segment::isProtectedSegment)
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple("Before TWENTY ", false),
+                        org.assertj.core.groups.Tuple.tuple("\"do not change twenty\"", true),
+                        org.assertj.core.groups.Tuple.tuple(" after TWENTY", false)
+                );
+    }
+
+    @Test
+    void preservesSpaceBeforeDoubleQuotedTextAfterTransform() {
+        String input = "Please explain this phrase: \"in order to make a decision\". Also explain in order to help.";
+        String expected = "Explain this phrase: \"in order to make a decision\". Also explain to help.";
+
+        String output = ProtectedTextProcessor.transformOutsideMarkdownCode(input, TRIMMING_SEMANTIC_TRANSFORMER);
+
+        assertThat(output).isEqualTo(expected);
+    }
+
+    @Test
+    void preservesSpaceBeforeSingleQuotedTextAfterTransform() {
+        String input = "Please explain this phrase: 'due to the fact that'. Also explain due to the fact that this matters.";
+        String expected = "Explain this phrase: 'due to the fact that'. Also explain because this matters.";
+
+        String output = ProtectedTextProcessor.transformOutsideMarkdownCode(input, TRIMMING_SEMANTIC_TRANSFORMER);
+
+        assertThat(output).isEqualTo(expected);
+    }
+
+    @Test
+    void doesNotAddSpaceWhenOriginalHadNoSpace() {
+        String input = "Look at(\"in order to\")";
+
+        String output = ProtectedTextProcessor.transformOutsideMarkdownCode(input, TRIMMING_SEMANTIC_TRANSFORMER);
+
+        assertThat(output).isEqualTo(input);
+    }
+
+    @Test
+    void preservesSpaceAfterQuotedTextWhenOriginalHadSpace() {
+        String input = "\"due to the fact that\" should stay, due to the fact that outside should change.";
+        String expected = "\"due to the fact that\" should stay, because outside should change.";
+
+        String output = ProtectedTextProcessor.transformOutsideMarkdownCode(input, TRIMMING_SEMANTIC_TRANSFORMER);
+
+        assertThat(output).isEqualTo(expected);
+    }
+
+    @Test
+    void inlineCodeStillProtectedAndSpacingStable() {
+        String input = "Please keep `in order to` unchanged and replace in order to outside.";
+        String expected = "Please keep `in order to` unchanged and replace to outside.";
+
+        String output = ProtectedTextProcessor.transformOutsideMarkdownCode(
+                input,
+                text -> text.replace("in order to", "to")
+        );
+
+        assertThat(output).isEqualTo(expected);
+    }
+
+    @Test
+    void fencedCodeBlockStillProtectedAndSpacingStable() {
+        String input = """
+                Please keep this code:
+
+                ```text
+                in order to
+                ```
+
+                Please replace in order to outside.
+                """;
+        String expected = """
+                Please keep this code:
+
+                ```text
+                in order to
+                ```
+
+                Please replace to outside.
+                """;
+
+        String output = ProtectedTextProcessor.transformOutsideMarkdownCode(
+                input,
+                text -> text.replace("in order to", "to")
+        );
 
         assertThat(output).isEqualTo(expected);
     }
