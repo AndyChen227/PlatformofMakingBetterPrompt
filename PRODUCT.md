@@ -15,17 +15,17 @@
 | 大小写规范化 | Case Normalizer | 保守修复明显全大写 prompt，使文本更稳定、更易读 | 输入优化 | 第一阶段 | 已完成 |
 | 重复句删除 | Duplicate Sentence Remover | 删除 prompt 中重复出现的完整句子，减少重复表达造成的 token 浪费 | 输入优化 | 第一阶段 | 已完成 |
 | 重复短语压缩 | Duplicate Phrase Reducer | 删除同一句内部重复出现的词组或短语 | 输入优化 | 第一阶段 | 已完成 |
-| 代码块保护 | Code Block Protector | 通过共享 `ProtectedTextProcessor` 保护 Markdown fenced code blocks 和 inline code，避免高风险 Level 1 文本转换规则和相关 Level 2 规则误改或误判代码内容 | 输入优化 | 第一阶段 | 部分完成 |
-| 引用文本保护 | Quoted Text Protector | 保护引号内文本，避免用户明确引用的内容被误改 | 输入优化 | 第一阶段 | 未完成 |
+| 代码块保护 | Code Block Protector | 通过共享 `ProtectedTextProcessor` 保护 Markdown fenced code blocks、inline code，并与 quoted text protection 共用同一安全层，避免高风险 Level 1 文本转换规则和相关 Level 2 规则误改或误判受保护内容 | 输入优化 | 第一阶段 | 部分完成 |
+| 引用文本保护 | Quoted Text Protection | 保护用户明确引用的文本，避免 quoted examples、source sentences、quoted phrases 在优化过程中被误改；当前由 `ProtectedTextProcessor` 提供，不作为独立 rule card 展示 | 输入优化 / 安全保护 | 第一阶段 | 已完成 |
 
-> 当前实现说明：代码块保护不是单独的前端规则卡片，也不是独立 pipeline rule；它由 `ProtectedTextProcessor` 作为共享 utility layer 提供。目前已覆盖 Markdown fenced code blocks 和 inline code，并接入 Case / Structure / Duplicate Sentence / Duplicate Phrase / Punctuation / Number / Semantic 七个高风险 Level 1 文本转换规则，以及 Level 2 的 `FormatControlRule`、`ConstraintDeduplicatorRule` 和 `InstructionConflictDetectorRule`。protected regions 保持 byte-for-byte unchanged，普通文本仍可优化。JSON-like blocks outside fenced code、Markdown tables、quoted text 和自定义 delimiter 仍属于后续升级范围。
+> 当前实现说明：代码块保护和引用文本保护都不是单独的前端规则卡片，也不是独立 pipeline rule；它们由 `ProtectedTextProcessor` 作为共享 utility layer 提供。目前已覆盖 Markdown fenced code blocks、inline code、quoted text（double quotes、single quotes、curly quotes），并接入 Case / Structure / Duplicate Sentence / Duplicate Phrase / Punctuation / Number / Semantic 七个高风险 Level 1 文本转换规则，以及 Level 2 的 `FormatControlRule`、`ConstraintDeduplicatorRule` 和 `InstructionConflictDetectorRule`。protected regions 保持 byte-for-byte unchanged，普通文本仍可优化。JSON-like blocks outside fenced code、Markdown tables 和自定义 delimiter 仍属于后续升级范围。
 
 ## 结构控制 — 控制 prompt 整体的长度和格式
 
 | 功能名称 | 英文名称 | 功能说明 | 类型 | 阶段 | 完成情况 |
 |---------|---------|---------|------|------|---------|
 | 长度限制 | Length Control | 超过设定字数上限时作为最终兜底规则自动截断 | 结构控制 | 第二阶段 | 待升级 |
-| 格式压缩 | Format Control | 把格式指令换成更短的符号表示，并通过 `ProtectedTextProcessor` 避免误改 fenced code blocks 和 inline code | 结构控制 | 第二阶段 | 部分完成 |
+| 格式压缩 | Format Control | 把格式指令换成更短的符号表示，并通过 `ProtectedTextProcessor` 避免误改 fenced code blocks、inline code 和 quoted text | 结构控制 | 第二阶段 | 部分完成 |
 | 句子数量限制 | Sentence Budget | 按最大句子数限制 prompt 长度，超过设定句数时自动截断 | 结构控制 | 第二阶段 | 已完成 |
 | 输出格式去重 | Output Format Deduplicator | 去除重复的输出格式要求，例如重复的列表、表格、JSON、Markdown 或代码块格式要求，保留每种格式第一次出现的要求 | 结构控制 | 第二阶段 | 已完成 |
 | 输出约束去重 | Constraint Deduplicator | 删除语义重复的输出约束，例如简洁、详细、一步步、简单易懂、例子要求；每类约束保留第一次出现的句子，删除后续重复项 | 结构控制 | 第二阶段 | 已完成 |
@@ -39,6 +39,12 @@
 BetterPrompt 的核心价值是减少 token 使用，因此核心优化规则应尽量避免为了优化而额外调用 LLM API。项目未来优先通过本地语料库、pattern library、phrase-pair library 来扩大覆盖面，而不是把 filler、compression、constraint 或 conflict 判断交给外部模型。
 
 这个方向可以降低额外 API 成本，增强规则可解释性，提高单元测试稳定性，也方便在 GitHub 中展示算法和工程能力。未来可逐步扩充 filler phrases、polite openers、closing remarks、verbose-to-concise phrase pairs、constraint expressions、conflict patterns、format instruction patterns，并评估将部分规则表外部化为 JSON / YAML 配置文件。
+
+## Page 3 Token Analysis 展示策略
+
+Page 3 现在采用纯文本方式对比显示 Original Prompt 和 Optimized Prompt，不再显示正文级红色删除线 / 绿色新增高亮。Original Prompt 仍保留 Before 标签和淡红色外框，Optimized Prompt 仍保留 After 标签和淡绿色外框，但正文内部只显示普通文本。
+
+这样可以避免 quote protection、重复短语、局部短语替换、标点粘连等场景下的视觉误导。Page 2 继续承担详细 rule-level 解释和变化审计：每个 rule 的 before / after、changes made、tokens saved 仍可逐步查看。Page 3 聚焦最终 token 统计、压缩率、最终 prompt 对比和 Quality Check 入口。
 
 ## 后续升级路线图
 
@@ -59,5 +65,6 @@ BetterPrompt 的核心价值是减少 token 使用，因此核心优化规则应
 | Sentence Budget | 保留前 N 句 | importance-aware sentence selection |
 | Length Control | hard truncate | importance-aware trimming |
 | Format Control | fixed replacements | implicit format intent + no-markdown/no-code detection |
-| Protected Text Safety Layer | code block / inline code | quoted text / JSON-like blocks / Markdown tables |
+| Protected Text Safety Layer | code block / inline code / quoted text | JSON-like blocks / Markdown tables |
 | Prompt Skeleton Compressor | 未实现 | 未来 Level 2 rule |
+| Optional visual diff redesign | Page 3 当前纯文本最终对比 | 未来可重新设计更稳定的 quote-aware diff |

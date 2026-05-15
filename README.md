@@ -55,11 +55,12 @@ This project models the optimization process as a **configurable pipeline of dis
 - Token savings accumulate across steps
 
 **Page 3 — Token Analysis**
-- Original prompt vs. optimized prompt comparison
+- Plain-text side-by-side comparison of the original prompt and optimized prompt
 - Aggregate compression statistics: original tokens, final tokens, compression rate
 - Bar chart showing token savings broken down by rule
 - Applied rules displayed as chips
-- Page 3 focuses on token analysis and provides a top-level action to run Quality Check
+- Page 3 focuses on token analysis, final output comparison, and the top-level action to run Quality Check
+- Inline red/green diff highlighting was removed from Page 3 because it can be misleading for quoted text, repeated phrases, punctuation adjacency, and partial phrase replacements
 
 **Page 4 — Quality Check**
 - Side-by-side display of ChatGPT's responses to the original and optimized prompts
@@ -102,6 +103,16 @@ Current rule count: 15.
 ### Pipeline Visualization
 
 Every optimization run produces a full audit trail. The frontend renders each rule's execution as a step card showing exactly what text went in, what came out, which specific phrases were removed or replaced, and how many tokens were saved. This makes the pipeline transparent and debuggable.
+
+Page 2 is the detailed audit trail: rule-level before/after cards, change logs, token deltas, and status are inspected there. Page 3 is a cleaner final summary view: it shows the original and optimized prompts as plain text side by side, plus token statistics, compression rate, applied-rule chips, the savings chart, and the Quality Check entry point. The previous inline red/green diff highlighting was removed from Page 3 to avoid misleading visual output for quoted text, repeated phrases, punctuation adjacency, and partial phrase replacements.
+
+**Page 2 step-card diff logic** (`generateDiffBefore` / `generateDiffAfter` / `computeWordDiff`):
+- Splits text with `\s+` while preserving the original tokens, including punctuation and casing
+- Compares normalized token forms by trimming boundary punctuation and lowercasing values
+- Uses an LCS dynamic-programming diff to produce `equal`, `delete`, and `insert` operations
+- The Before view renders equal and deleted tokens; deleted tokens are wrapped in `<span class="diff-del">`
+- The After view renders equal and inserted tokens; inserted tokens are wrapped in `<span class="diff-add">`
+- This is used for Page 2 rule step cards, while Page 3 final comparison intentionally remains plain text
 
 ---
 
@@ -225,7 +236,7 @@ BetterPromptByAndyy2.0/
     │   │       ├── RuleEngine.java                 # Pipeline executor (Chain of Responsibility)
     │   │       ├── TokenCounter.java               # jtokkit o200k_base BPE token counter
     │   │       ├── util/
-    │   │       │   └── ProtectedTextProcessor.java # Protect fenced code blocks and inline code
+    │   │       │   └── ProtectedTextProcessor.java # Protect fenced code blocks, inline code, and quoted text
     │   │       │
     │   │       ├── level1/                         # Input Processing Rules
     │   │       │   ├── FillerRemovalRule.java      # Remove greetings, openers, mid-text fillers, and closing remarks
@@ -292,7 +303,7 @@ The change log records every specific removal, e.g.:
 
 Conservatively normalizes clearly all-uppercase prompts into sentence case before task analysis. It only triggers when the uppercase-letter ratio is high enough, with a default threshold of `0.9`, to avoid rewriting normal mixed-case prompts.
 
-Skips Markdown fenced code blocks and inline code through `ProtectedTextProcessor`.
+Skips Markdown fenced code blocks, inline code, and quoted text through `ProtectedTextProcessor`.
 
 Current execution order: `FillerRemovalRule → CaseNormalizerRule → TaskAnalyzerRule`.
 
@@ -328,7 +339,7 @@ Output text remains unchanged by this rule.
 
 Replaces verbose multi-word phrases with shorter semantic equivalents. Uses a tiered substitution table controlled by the `compressionLevel` parameter.
 
-Skips Markdown fenced code blocks and inline code through `ProtectedTextProcessor`.
+Skips Markdown fenced code blocks, inline code, and quoted text through `ProtectedTextProcessor`.
 
 | Tier | Range | Substitution pairs |
 |------|-------|--------------------|
@@ -357,7 +368,7 @@ Skips Markdown fenced code blocks and inline code through `ProtectedTextProcesso
 
 Normalizes whitespace and blank lines — purely structural, no semantic content is changed.
 
-Skips Markdown fenced code blocks and inline code through `ProtectedTextProcessor`.
+Skips Markdown fenced code blocks, inline code, and quoted text through `ProtectedTextProcessor`.
 
 Four operations applied in sequence:
 
@@ -372,7 +383,7 @@ Four operations applied in sequence:
 
 Removes fully duplicated sentences while keeping the first occurrence. This reduces repeated token usage without changing the user's intended meaning. The first implementation handles exact duplicates after simple normalization.
 
-Skips Markdown fenced code blocks and inline code through `ProtectedTextProcessor`.
+Skips Markdown fenced code blocks, inline code, and quoted text through `ProtectedTextProcessor`.
 
 Current execution order: `StructureMinimizerRule → DuplicateSentenceRemoverRule → PunctuationNormalizerRule`.
 
@@ -382,7 +393,7 @@ Current execution order: `StructureMinimizerRule → DuplicateSentenceRemoverRul
 
 Removes consecutive duplicated words or short phrases inside a sentence. The first implementation handles exact adjacent duplicates up to trigrams, such as `simple simple` or `step by step step by step`, without attempting semantic similarity.
 
-Skips Markdown fenced code blocks and inline code through `ProtectedTextProcessor`.
+Skips Markdown fenced code blocks, inline code, and quoted text through `ProtectedTextProcessor`.
 
 Current execution order: `DuplicateSentenceRemoverRule → DuplicatePhraseReducerRule → PunctuationNormalizerRule`.
 
@@ -398,7 +409,7 @@ Compresses repeated punctuation and normalises ellipses. Three operations applie
 
 Example: `"Is this right?? Sure!! Let me think...."` → `"Is this right? Sure! Let me think..."`
 
-Skips Markdown fenced code blocks and inline code through `ProtectedTextProcessor`.
+Skips Markdown fenced code blocks, inline code, and quoted text through `ProtectedTextProcessor`.
 
 ---
 
@@ -417,17 +428,19 @@ Two-phase processing (percent phrases first, then plain numbers):
 
 The parser supports ones (zero–nineteen), tens (twenty–ninety), and scale words (hundred, thousand, million) in arbitrary combination.
 
-Skips Markdown fenced code blocks and inline code through `ProtectedTextProcessor`.
+Skips Markdown fenced code blocks, inline code, and quoted text through `ProtectedTextProcessor`.
 
 #### Protected Text Safety Layer
 
 `ProtectedTextProcessor` is a shared safety utility used by the high-risk text transformation rules, including the protected Level 1 path, `FormatControlRule`, `ConstraintDeduplicatorRule`, and `InstructionConflictDetectorRule`. It is not a frontend-visible rule card and not an independent pipeline rule.
 
-Current scope: fenced code blocks using triple backticks and inline code wrapped in single backticks. These protected regions are preserved byte-for-byte while normal natural-language text outside those regions can still be optimized.
+Current scope: fenced code blocks using triple backticks, inline code wrapped in single backticks, and quoted text. Quoted text protection covers straight double quotes, straight single quotes, curly double quotes, and curly single quotes. These protected regions are preserved byte-for-byte while normal natural-language text outside those regions can still be optimized.
+
+Quoted text protection prevents optimization rules from modifying user-provided quoted examples, source sentences, or quoted phrases. It supports simple escaped quotes, avoids treating apostrophes in words such as `Don't` as quote delimiters, and deliberately leaves unclosed quotes unprotected so later normal text is not swallowed by a mistaken protected region. This is a safety-layer upgrade, not a separate optimization rule.
 
 Current protected rules: `CaseNormalizerRule`, `StructureMinimizerRule`, `DuplicateSentenceRemoverRule`, `DuplicatePhraseReducerRule`, `PunctuationNormalizerRule`, `NumberNormalizerRule`, `SemanticCompressorRule`, `FormatControlRule`, `ConstraintDeduplicatorRule`, and `InstructionConflictDetectorRule`.
 
-Out of scope: quoted text, Markdown tables, JSON-like blocks outside fenced code, and custom delimiters.
+Out of scope: Markdown tables, JSON-like blocks outside fenced code, and custom delimiters.
 
 ---
 
@@ -443,7 +456,7 @@ Removes repeated output-format instructions while keeping the first instruction 
 
 Example: `Explain recursion. Please use bullet points. Answer as a list. Give me bullet points.` → `Explain recursion. Please use bullet points.`
 
-Skips Markdown fenced code blocks and inline code through `ProtectedTextProcessor`.
+Skips Markdown fenced code blocks, inline code, and quoted text through `ProtectedTextProcessor`.
 
 Current execution order: `OutputFormatDeduplicatorRule → ConstraintDeduplicatorRule → InstructionConflictDetectorRule → SentenceBudgetRule → LengthControlRule → FormatControlRule`.
 
@@ -455,7 +468,7 @@ Removes repeated output-constraint instructions while keeping the first sentence
 
 Example: `Explain recursion. Be concise. Keep it short. Make the answer brief. Give examples. Include examples. Explain step by step. Show each step.` → `Explain recursion. Be concise. Give examples. Explain step by step.`
 
-Skips Markdown fenced code blocks and inline code through `ProtectedTextProcessor`.
+Skips Markdown fenced code blocks, inline code, and quoted text through `ProtectedTextProcessor`.
 
 This rule does not resolve conflicts such as concise vs detailed; conflict handling remains future work.
 
@@ -473,7 +486,7 @@ Supported first-version conflict pairs:
 | `ONE_SENTENCE` vs `STEP_BY_STEP` | `Answer in 1 sentence. Explain step by step.` |
 | `JSON` vs `MARKDOWN` | `Respond in JSON. Use Markdown format.` |
 
-Skips Markdown fenced code blocks and inline code through `ProtectedTextProcessor`, so diagnostic matches inside protected code regions do not trigger conflicts.
+Skips Markdown fenced code blocks, inline code, and quoted text through `ProtectedTextProcessor`, so diagnostic matches inside protected regions do not trigger conflicts.
 
 ---
 
@@ -491,7 +504,7 @@ Acts as the final hard word-budget guard. If the prompt still exceeds `maxWords`
 
 #### 15. Format Control
 
-Replaces verbose, human-readable formatting instructions with their compact symbol equivalents. Markdown fenced code blocks and inline code are skipped through `ProtectedTextProcessor`, so format strings inside protected code regions remain unchanged.
+Replaces verbose, human-readable formatting instructions with their compact symbol equivalents. Markdown fenced code blocks, inline code, and quoted text are skipped through `ProtectedTextProcessor`, so format strings inside protected regions remain unchanged.
 
 | Verbose instruction | Compact replacement |
 |---------------------|---------------------|
@@ -868,6 +881,7 @@ Open `http://localhost:8080` in your browser.
 - [x] v1.5.7 — Pipeline Stability Cleanup (rule-level fault isolation, `RuleConfig.getBooleanParam`, FormatControl protected text support, Page 3 action cleanup)
 - [x] v1.5.8 — ConstraintDeduplicatorRule (remove repeated output constraints before sentence/length budgets)
 - [x] v1.5.9 — InstructionConflictDetectorRule (diagnose conflicting output instructions without rewriting the prompt)
+- [x] v1.6.0 — Quoted Text Protection and Page 3 Token Analysis display simplification
 
 Future upgrade candidates:
 
@@ -879,7 +893,8 @@ Future upgrade candidates:
 | Larger local datasets | Expand filler phrases, polite openers, closing remarks, verbose-to-concise pairs, constraint expressions, conflict patterns, and format instruction patterns |
 | Conflict handling | Add severity scoring and suggestion-only conflict resolution |
 | Length control | Replace hard truncation with importance-aware trimming |
-| Protected text | Expand protection to quoted text, JSON-like blocks, and Markdown tables |
+| Protected text | Expand protection to JSON-like blocks, Markdown tables, and optional custom delimiters |
+| Visual diff redesign | Optional future quote-aware visual diff for final result comparison |
 | Semantic coverage | Explore semantic-similarity based compression and deduplication |
 | Multilingual support | Add multilingual prompt optimization for filler, compression, constraints, and conflicts |
 
@@ -921,9 +936,15 @@ in the UI.
 
 ### Why a ProtectedTextProcessor utility instead of a visible rule?
 
-v1.5.5 protects Markdown fenced code blocks and inline code inside the high-risk Level 1 transformation rules themselves. This is implemented as `ProtectedTextProcessor`, not as a separate frontend rule card or normal pipeline rule.
+v1.5.5 protects Markdown fenced code blocks and inline code inside the high-risk Level 1 transformation rules themselves. v1.6.0 extends the same shared safety layer to quoted text. This is implemented as `ProtectedTextProcessor`, not as a separate frontend rule card or normal pipeline rule.
 
-The current scope is deliberately partial: fenced code blocks and inline code are preserved byte-for-byte, while normal text outside those regions can still be optimized. v1.5.7 extends this protection to `FormatControlRule`, v1.5.8 extends it to `ConstraintDeduplicatorRule`, and v1.5.9 extends it to `InstructionConflictDetectorRule` as well as the high-risk Level 1 text rules. Quoted text, Markdown tables, JSON-like blocks outside fenced code, and custom delimiters remain future work.
+The current scope is deliberately partial: fenced code blocks, inline code, and quoted text are preserved byte-for-byte, while normal text outside those regions can still be optimized. v1.5.7 extends this protection to `FormatControlRule`, v1.5.8 extends it to `ConstraintDeduplicatorRule`, and v1.5.9 extends it to `InstructionConflictDetectorRule` as well as the high-risk Level 1 text rules. Markdown tables, JSON-like blocks outside fenced code, and custom delimiters remain future work.
+
+Quoted text protection covers straight double quotes, straight single quotes, curly double quotes, and curly single quotes. It is meant to preserve user-provided examples, source sentences, and quoted phrases such as `"in order to make a decision"` while still allowing surrounding natural-language text to be optimized.
+
+### Why does Page 3 show plain text instead of inline diff?
+
+Page 3 is the final Token Analysis summary, not the detailed audit trail. Earlier inline red/green diff highlighting could make quoted text, repeated phrases, punctuation adjacency, and partial phrase replacements look more changed than they really were. The final Original Prompt / Optimized Prompt comparison therefore uses plain text side by side. Page 2 remains the place to inspect rule-level before/after cards, change logs, and token deltas.
 
 ### Why keep core optimization offline and rule-based?
 
@@ -953,4 +974,4 @@ Exposing raw numbers to a UI creates a usability problem: a user setting `aggres
 
 ---
 
-*Built by Andy · 2026 · Last updated 2026/05/12*
+*Built by Andy*

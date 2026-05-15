@@ -1,4 +1,4 @@
-# BetterPrompt 功能清单 v1.5.9
+# BetterPrompt 功能清单 v1.6.0
 
 > 本文档根据实际代码生成，记录项目每个功能的实现状态、细节和验证方式。
 > 更新规则：每完成或修改一个功能，同步更新对应条目。
@@ -154,9 +154,24 @@
 **实现位置：**
 - `src/main/java/com/betterprompt/betterpromptbyandyy2/optimizer/util/ProtectedTextProcessor.java`
 
+**v1.6.0 更新：Quoted Text Protection**
+- `ProtectedTextProcessor` 现在保护 Markdown fenced code blocks、Markdown inline code 和 quoted text。
+- quoted text 范围包括 double-quoted text、single-quoted text、curly double quotes、curly single quotes。
+- 这是安全层能力升级，不是独立 rule，不新增前端 rule card，也不改变 `RuleRegistryConfig`。
+- 所有已经接入 `ProtectedTextProcessor` 的 rule 自动受益。
+- 引号内文本保持 byte-for-byte unchanged，引号外文本仍可正常优化。
+- 支持简单 escaped quote；避免把 `Don't` 这类 apostrophe 误判为 single quote。
+- 未闭合 quote 不保护，避免误吞后续正文。
+- 当前接入规则包括 `CaseNormalizerRule`、`StructureMinimizerRule`、`DuplicateSentenceRemoverRule`、`DuplicatePhraseReducerRule`、`PunctuationNormalizerRule`、`NumberNormalizerRule`、`SemanticCompressorRule`、`OutputFormatDeduplicatorRule`、`ConstraintDeduplicatorRule`、`InstructionConflictDetectorRule`、`FormatControlRule`。
+- JSON-like blocks、Markdown tables 和 custom delimiters 仍属于未来 protected text 扩展范围。
+
 **当前保护范围：**
 - Markdown fenced code blocks（triple backticks）
 - inline code（single backticks）
+- double-quoted text
+- single-quoted text
+- curly double quotes
+- curly single quotes
 
 **当前接入规则：**
 - `CaseNormalizerRule`
@@ -177,13 +192,12 @@
 - 该能力是共享 utility layer，不是单独的前端规则卡片，也不是独立 pipeline rule
 
 **已知边界：**
-- 不保护 quoted text
+- 已保护 quoted text
 - 不保护未包在 fenced code block 中的 JSON-like blocks
 - 不保护 Markdown tables
 - 不支持 arbitrary custom delimiters
 
 **未来扩展：**
-- quoted text protection
 - JSON block / Markdown table protection
 - budget-aware protection
 
@@ -358,7 +372,7 @@ actually
 - 第一版仍可能把全大写文本中的专有名词改成小写，例如 `JAVA` → `java`
 - 不会智能保护 OpenAI、JavaScript、GitHub、REST API、JSON、SQL 等专有名词或缩写
 - 已保护 Markdown fenced code blocks 和 inline code
-- 仍不保护 quoted text、未 fenced 的 JSON-like blocks、Markdown tables 或 custom delimiters
+- 已保护 quoted text；仍不保护未 fenced 的 JSON-like blocks、Markdown tables 或 custom delimiters
 - 不处理普通混合大小写文本
 - 不适合创意写作或强调性全大写文本
 
@@ -485,8 +499,8 @@ actually
 
 **已知局限**（代码注释）：
 - 替换表固定，无法检测未列举的冗余表达
-- 已保护 Markdown fenced code blocks 和 inline code
-- 仍不保护 quoted strings、proper nouns、未 fenced 的 JSON-like blocks、Markdown tables 或 custom delimiters
+- 已保护 Markdown fenced code blocks、inline code 和 quoted text
+- 仍不保护 proper nouns、未 fenced 的 JSON-like blocks、Markdown tables 或 custom delimiters
 
 **验证用例**：
 - 输入：`"I need to write code in order to sort the array, due to the fact that it is slow."`（compressionLevel=50，MID）
@@ -629,7 +643,7 @@ actually
 - 可能误删强调性重复，例如 `very very important`
 - 简单 token 切分可能被复杂标点、代码片段、URL 或 Markdown 结构干扰
 - 已保护 Markdown fenced code blocks 和 inline code
-- 仍不保护 quoted text、未 fenced 的 JSON-like blocks、Markdown tables 或 custom delimiters
+- 已保护 quoted text；仍不保护未 fenced 的 JSON-like blocks、Markdown tables 或 custom delimiters
 - 前端 Before/After diff 高亮在重复短语场景下可能只高亮部分删除内容，后续需要单独升级 diff visualization
 
 **验证用例：**
@@ -673,7 +687,7 @@ actually
 - 不处理中文标点（！！！→！）
 - 不处理混合标点（!? 或 ?!）
 - 已保护 Markdown fenced code blocks 和 inline code 内的标点
-- 仍不保护 quoted text、未 fenced 的 JSON-like blocks、Markdown tables 或 custom delimiters
+- 已保护 quoted text；仍不保护未 fenced 的 JSON-like blocks、Markdown tables 或 custom delimiters
 
 **验证用例**：
 - 输入：`"Is this correct?? I'm sure!! Let me think...."`
@@ -717,7 +731,7 @@ actually
 - 不支持序数词（first, second → 1st, 2nd）
 - 不支持小数（one point five → 1.5）
 - 已保护 Markdown fenced code blocks 和 inline code
-- 仍不保护 quoted text、未 fenced 的 JSON-like blocks、Markdown tables 或 custom delimiters
+- 已保护 quoted text；仍不保护未 fenced 的 JSON-like blocks、Markdown tables 或 custom delimiters
 
 **验证用例**：
 
@@ -748,7 +762,7 @@ actually
 
 **执行逻辑：**
 1. inputText 为 null 时视为空字符串
-2. 使用 `ProtectedTextProcessor`，只处理 Markdown fenced code blocks 和 inline code 之外的普通文本
+2. 使用 `ProtectedTextProcessor`，只处理 Markdown fenced code blocks、inline code 和 quoted text 之外的普通文本
 3. 将普通文本按保守英文句子规则切分
 4. 判断每个句子是否是输出格式要求，并映射到 format type
 5. 每个 format type 保留第一次出现的句子
@@ -791,7 +805,7 @@ actually
 - `EXAMPLES`：给例子，例如 `Give examples.`、`Include examples.`
 
 **执行逻辑：**
-1. 使用 `ProtectedTextProcessor`，只处理 Markdown fenced code blocks 和 inline code 外部文本
+1. 使用 `ProtectedTextProcessor`，只处理 Markdown fenced code blocks、inline code 和 quoted text 外部文本
 2. 将普通文本按 sentence-level 切分
 3. 每个句子检测是否属于某个 `ConstraintType`
 4. 每个 `ConstraintType` 第一次出现时保留该句
@@ -810,7 +824,7 @@ actually
 - 只覆盖当前五类英文输出约束
 - 不做跨语言检测
 - 不做 conflict detection，例如 concise vs detailed 目前会分别保留
-- 不保护 quoted text、JSON-like blocks outside fenced code、Markdown tables
+- 已保护 quoted text；仍不保护 JSON-like blocks outside fenced code、Markdown tables
 
 **未来升级：**
 - semantic similarity matching for paraphrased constraints
@@ -845,7 +859,7 @@ actually
 
 **执行逻辑：**
 1. inputText 为 null 时视为空字符串
-2. 使用 `ProtectedTextProcessor`，只检测 Markdown fenced code blocks 和 inline code 外部文本
+2. 使用 `ProtectedTextProcessor`，只检测 Markdown fenced code blocks、inline code 和 quoted text 外部文本
 3. 使用 pattern 检测各 instruction type
 4. 每种 instruction type 只记录第一次命中，避免 changes 过长
 5. 如果一个 conflict pair 两边都命中，则记录冲突
@@ -1035,7 +1049,7 @@ BetterPrompt 未来会优先扩大本地 pattern / phrase pair / constraint corp
 | `FillerRemovalRule` | 多语言 filler；扩充本地 filler corpus；上下文保留模式；语义相似 filler 检测；正式写作场景保护 |
 | `CaseNormalizerRule` | 保护专有名词和缩写，如 OpenAI、GitHub、JavaScript、SQL、API、JSON、HTML、CSS、GPT；更智能判断强调性全大写是否需要保留 |
 | `TaskAnalyzerRule` | 更大的本地关键词库；多标签分类；可配置 domain/task keyword dictionaries；后续让 taskType / complexity 影响其他 rule |
-| `SemanticCompressorRule` | 更大的本地 phrase-pair corpus；多语言短语压缩；风险等级；proper noun / quoted text 更强保护 |
+| `SemanticCompressorRule` | 更大的本地 phrase-pair corpus；多语言短语压缩；风险等级；proper noun 保护；JSON-like blocks / Markdown tables protected text 扩展 |
 | `StructureMinimizerRule` | 清理重复 Markdown 标题；清理重复分隔线；删除空 bullet；保护 Markdown tables |
 | `DuplicateSentenceRemoverRule` | 近似重复句检测；更好的 sentence boundary detection；处理 e.g.、URLs、version numbers 等边界情况 |
 | `DuplicatePhraseReducerRule` | 支持更长短语；避免误删强调表达如 very very important；更好的 punctuation-preserving tokenization |
@@ -1314,7 +1328,7 @@ Content-Type: application/json
 
 **步骤详情三个 detail block**：
 - 蓝色 `Parameter used` 块：说明当前参数档位的含义（有参数的规则才显示）
-- 绿色 `Before / After` 块：展示 inputText 和 outputText，应用词级别 diff 高亮（见 6.4）
+- 绿色 `Before / After` 块：展示 inputText 和 outputText，应用步骤级 before / after 高亮
 - 黄色 `Changes made` 块：逐条显示 changes 列表，每条格式 `→ change_text`
 
 **底部按钮**：`← Back`（返回 Page 1）、`View Final Result →`（前进 Page 3）
@@ -1327,15 +1341,18 @@ Content-Type: application/json
 **Stats 统计栏**：同 Page 2
 
 **Before/After 对比展示**（两列 compare-col）：
-- 左列：Original Prompt（带 `Before` 红色 badge）+ 词级别 diff（删除词红色删除线）
-- 右列：Optimized Prompt（带 `After` 绿色 badge）+ 词级别 diff（新增词绿色高亮）+ `Copy` 按钮
+- 左列：Original Prompt（带 `Before` 红色 badge）+ 完整 original prompt 纯文本
+- 右列：Optimized Prompt（带 `After` 绿色 badge）+ 完整 optimized prompt / finalPrompt 纯文本 + `Copy` 按钮
 - 底部分别显示原始 token 数和最终 token 数（最终为绿色）
+- 外层 Before / After 视觉样式保留，但正文内部不再生成 `diff-del` / `diff-add`
 
-**词级别 diff 高亮逻辑**（`generateDiffBefore` / `generateDiffAfter`）：
-- 将文本用 `\s+` 分割为词数组
-- Before 视图：在 before 词集合中出现、但在 after 词集合（lowercase）中不存在的词 → `<span class="diff-del">` 红色删除线
-- After 视图：在 after 词集合中出现、但在 before 词集合（lowercase）中不存在的词 → `<span class="diff-add">` 绿色高亮
-- 匹配方式：基于 Set 的逐词比较（非序列 diff），大小写不敏感
+### Page 3 Token Analysis 展示策略
+
+v1.6.0 起，Page 3 使用纯文本方式展示 Original Prompt 和 Optimized Prompt，不再在正文中显示红色删除线 / 绿色新增高亮。
+
+原因：旧 diff 高亮在 quoted text、重复短语、局部短语替换、标点粘连等场景下容易产生误导，把大段未变化文本显示成删除或新增。Page 3 的定位是最终结果总结：token 统计、压缩率、最终 prompt 对比、Quality Check 入口。
+
+Page 2 才是详细 pipeline audit trail：每个 rule 的 before / after、changes made、tokens saved 仍在步骤卡片中查看。未来可以重新设计更稳定的 visual diff，例如 phrase-level diff、quote-aware diff，或更接近 GitHub diff 的展示；当前版本为了避免误导，Page 3 暂时采用纯文本展示。
 
 **Applied Rules chips**（`chipsRow`）：
 - 按 RULE_ORDER 顺序渲染，skipped 的规则不显示

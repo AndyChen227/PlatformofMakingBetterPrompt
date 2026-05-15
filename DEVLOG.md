@@ -14,10 +14,10 @@
 
 （每次更新都要更新这一栏）
 
-- 当前版本：v1.5.9
-- 当前阶段：Instruction Conflict Detector 已加入 Level 2；当前可检测 CONCISE vs DETAILED、ONE_SENTENCE vs STEP_BY_STEP、JSON vs MARKDOWN 三类潜在冲突，第一版只检测、不自动修改 prompt。
+- 当前版本：v1.6.0
+- 当前阶段：Quoted Text Protection 已加入 `ProtectedTextProcessor`；Page 3 Token Analysis 已简化为纯文本最终对比，避免旧 diff 高亮在 quoted text、重复短语、局部替换场景下造成误导。
 - 已完成模块数：15/15（Level 1 + Level 2 + Quality Check + AI Generate + Sentence Budget + Duplicate Sentence Remover + Case Normalizer + Duplicate Phrase Reducer + Protected Text Safety Layer + Constraint Deduplicator + Instruction Conflict Detector）
-- 下一步：继续评估 Prompt Skeleton Compressor、本地规则语料库扩展、Instruction Conflict Resolver 升级、quoted text / JSON-like blocks / Markdown tables 等保护范围。
+- 下一步：继续评估 Prompt Skeleton Compressor、本地规则语料库扩展、JSON-like blocks / Markdown tables 保护、Instruction Conflict Detector 升级等方向。
 
 ---
 
@@ -424,12 +424,37 @@
 
 ---
 
+### ✅ v1.6.0 — Quoted Text Protection & Page 3 Display Simplification
+
+产出：
+- `ProtectedTextProcessor` 新增 quoted text protection。
+- 保护范围保留 Markdown fenced code blocks、Markdown inline code，并新增 double quotes / single quotes / curly quotes。
+- 避免把 `Don't` 这类 apostrophe 误判为 quote。
+- 未闭合 quote 不保护，避免误吞后续正文。
+- 引号内文本保持 byte-for-byte unchanged，引号外文本仍可优化。
+- 这是共享 safety utility 升级，不是独立 rule，不新增前端 rule card，不改变 rule 注册顺序。
+- 更新相关测试，包括 `ProtectedTextProcessorTest`、`CaseNormalizerRuleTest`、`InstructionConflictDetectorRuleTest` 中相关保护场景。
+- Page 3 Token Analysis 展示简化：Original Prompt / Optimized Prompt 正文改为纯文本显示。
+- 移除 Page 3 正文红色删除线 / 绿色新增高亮，避免视觉误导。
+- Page 2 仍保留 rule-level before / after、changes made、tokens saved，作为详细审计视图。
+
+修复的显示问题：
+- 旧 Page 3 diff 在 quoted text、重复短语和标点粘连场景下可能把大段文本显示成删除或新增。
+- 典型案例：`Please explain this phrase: 'due to the fact that'. Also explain due to the fact that this matters.`
+- 当前方案：Page 3 不再尝试做正文 diff，而是展示干净的 original / optimized 纯文本对比。
+- 真正的逐 rule 变化仍可在 Page 2 查看。
+
+状态：v1.6.0 完成 quoted text safety layer 升级，并将 Page 3 定位为最终 Token Analysis 总结视图。
+
+---
+
 ## 后续升级候选池
 
 - Prompt Skeleton Compressor：压缩结构化 prompt 的模板标题和重复骨架，减少模板本身的 token 消耗
 - 本地规则语料库扩展（Local Rule Corpus Expansion）：当前很多 rule 依赖固定 patterns；后续优先扩大本地 pattern library / phrase pair library / constraint corpus，而不是依赖外部 API
 - Instruction Conflict Detector → Resolver：从检测冲突升级为提供解决建议，但不直接自动改写用户 prompt
-- ProtectedTextProcessor 扩展：继续评估 quoted text / JSON-like blocks / Markdown tables 保护范围
+- ProtectedTextProcessor 扩展：继续评估 JSON-like blocks / Markdown tables 保护范围
+- Optional quote-aware visual diff redesign：未来可重新设计更稳定的最终结果可视化 diff，但当前 Page 3 采用纯文本展示以避免误导
 - LengthControl 升级：从 hard truncate 升级到 importance-aware trimming，避免截断核心任务句、debug 错误信息或代码上下文
 - TaskAnalyzer 升级：从关键词分类升级到多标签分类和 configurable keyword dictionaries
 - Semantic similarity based compression and deduplication：用于更高阶的短语压缩、近似重复句检测和约束去重
@@ -442,7 +467,7 @@
 
 | 功能 | 优先级 | 说明 |
 |------|--------|------|
-| CodeBlockProtectorRule 升级 | 中 | 当前 `ProtectedTextProcessor` 已覆盖 fenced code blocks 和 inline code；后续可扩展 quoted text、JSON-like blocks、Markdown tables |
+| CodeBlockProtectorRule 升级 | 中 | 当前 `ProtectedTextProcessor` 已覆盖 fenced code blocks、inline code、quoted text；后续可扩展 JSON-like blocks、Markdown tables |
 | Level 3 上下文优化 | 中 | 历史裁剪、摘要记忆、相关性过滤 |
 | Level 4 系统级优化 | 低 | 缓存、模型分流、任务拆分 |
 | Level 5 高级优化 | 低 | 长期研究方向 |
@@ -473,7 +498,6 @@
 | 2026/5/1 | 文档版本号体系统一至标准三段式 major.minor.patch | major 留给架构级新维度（Level 3 = v2.0.0，Level 4/5 = v3.0.0）；minor 留给独立新功能模块（Generator / UI 重构 / Quality Check / AI Generate / BPE Tokenizer）；patch 留给单条规则上线。git tag 历史（v1.0.4 / v3.0）保留，文档归文档、tag 归 tag。 |
 | 2026/5/3 | Protected Text Safety Layer 采用共享工具类而不是普通 pipeline rule | 共享 `ProtectedTextProcessor` 可以让高风险规则在本地跳过 fenced code blocks 和 inline code。后续保护范围优先评估 quoted text、JSON-like blocks 和 Markdown tables。 |
 | 2026/5/8 | RuleEngine 增加 rule-level fault isolation | 单条规则失败不应中断完整优化链路；记录 `status="error"` StepResult 并保持 currentText 不变，可以保留可审计性并让后续规则继续工作。 |
-
 ---
 
 ## 风险与阻塞
@@ -526,8 +550,8 @@
 
 ## 下一步行动
 
-1. 继续评估 Prompt Skeleton Compressor、本地规则语料库扩展、Instruction Conflict Resolver 升级、quoted text / JSON-like blocks / Markdown tables 等保护范围。
+1. 继续评估 Prompt Skeleton Compressor、本地规则语料库扩展、Instruction Conflict Resolver 升级、JSON-like blocks / Markdown tables 保护等方向。
 
 ---
 
-*最后更新：2026/5/12 · 维护人：Andy*
+*维护人：Andy*
